@@ -30,6 +30,12 @@
   <sub><i>Design concept: Fishy draws live analysis over the board in any app or website.</i></sub>
 </p>
 
+> **Heavily inspired by Stockfish.** Fishy started life as a fork of the
+> [Stockfish](https://github.com/official-stockfish/Stockfish) repository and is
+> heavily inspired by it: from its UCI engine, which does all the thinking, to
+> its README structure, contribution guide and open-source spirit. Huge thanks
+> to the Stockfish developers and community.
+
 ## Our goal
 
 Chess engines are incredibly strong, but they speak in numbers and move lists
@@ -169,8 +175,8 @@ repository and the pinned Stockfish submodule).
 
 ## Acknowledgements
 
-Fishy is built on [Stockfish](https://stockfishchess.org), created by the
-Stockfish developers and community (see its
+Fishy is heavily inspired by, and built on, [Stockfish](https://stockfishchess.org),
+created by the Stockfish developers and community (see its
 [AUTHORS](https://github.com/official-stockfish/Stockfish/blob/master/AUTHORS)).
 Stockfish uses neural networks trained on [data provided by the Leela Chess Zero
 project](https://storage.lczero.org/files/training_data), made available under the
