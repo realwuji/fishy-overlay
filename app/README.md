@@ -115,3 +115,24 @@ Keep the identity in the environment, not in `tauri.conf.json`. To distribute
 the `.dmg` to other people it must also be notarized (set `APPLE_ID`,
 `APPLE_PASSWORD` (app-specific) and `APPLE_TEAM_ID`, or an App Store Connect API
 key, before building; Tauri then submits and staples it).
+
+### Notarizing a release (macOS)
+
+One-time: store a notary profile (prompts for an app-specific password; it is
+kept in your keychain, never in the repo):
+
+```sh
+xcrun notarytool store-credentials "fishy-notary" --apple-id you@example.com --team-id TEAMID
+```
+
+Then, after building the signed `.dmg`:
+
+```sh
+xcrun notarytool submit Fishy_0.1.0_aarch64.dmg --keychain-profile fishy-notary --wait
+xcrun stapler staple Fishy_0.1.0_aarch64.dmg
+spctl -a -vv -t open --context context:primary-signature Fishy_0.1.0_aarch64.dmg   # expect "Notarized Developer ID"
+```
+
+If `tauri build` fails with "can't find crate" for a proc-macro on macOS 27,
+run `cargo clean --release -p tauri-macros -p tauri` and build again (the
+workspace compiles build-time macros unoptimised to avoid a dlopen problem).
