@@ -1,0 +1,11 @@
+target/
+node_modules/
+dist/
+src-tauri/gen/
+src-tauri/binaries/stockfish-*
+
+# Local-only screenshots (third-party artwork); tests that use them skip when absent.
+crates/fishy-vision/tests/fixtures/local/
+
+# Local engine binary backups
+.engine-backup/

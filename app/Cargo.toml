@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["src-tauri", "crates/fishy-engine", "crates/fishy-vision"]
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = 3
+panic = "unwind"
+
+# Build scripts and proc macros: compile unoptimised. Optimised proc-macro
+# dylibs produced by the current toolchain fail to load on recent macOS
+# ("mis-aligned LINKEDIT string pool"). This does not affect the app binary.
+[profile.release.build-override]
+opt-level = 0
+codegen-units = 256
+debug = false

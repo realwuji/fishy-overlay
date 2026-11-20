@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 200" role="img" aria-label="Fishy">
+  <defs>
+    <linearGradient id="wbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14324f"/><stop offset="1" stop-color="#081320"/>
+    </linearGradient>
+    <radialGradient id="wglow" cx="0.62" cy="0.42" r="0.6">
+      <stop offset="0" stop-color="#2ee6c5" stop-opacity="0.28"/><stop offset="1" stop-color="#2ee6c5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wfish" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5cf2d6"/><stop offset="0.55" stop-color="#2fc8e0"/><stop offset="1" stop-color="#3b82ff"/>
+    </linearGradient>
+    <linearGradient id="wfin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82ff"/><stop offset="1" stop-color="#2a5fd6"/>
+    </linearGradient>
+    <linearGradient id="wshine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="wbody"><path d="M218 128C202 86 152 72 112 90C92 99 81 113 76 128C81 143 92 157 112 166C152 184 202 170 218 128Z"/></clipPath>
+    <linearGradient id="wfade" gradientUnits="userSpaceOnUse" x1="96" y1="0" x2="168" y2="0">
+      <stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/>
+    </linearGradient>
+    <mask id="wscalemask"><rect width="256" height="256" fill="url(#wfade)"/></mask>
+    <linearGradient id="wtext" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2fe0c4"/><stop offset="1" stop-color="#3b82ff"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(4,4) scale(0.75)">
+    <rect width="256" height="256" rx="58" fill="url(#wbg)"/>
+    <rect width="256" height="256" rx="58" fill="url(#wglow)"/>
+    <rect x="1.5" y="1.5" width="253" height="253" rx="56.5" fill="none" stroke="#fff" stroke-opacity="0.08" stroke-width="3"/>
+    <path d="M122 92C132 64 160 54 186 66C176 72 168 82 164 96Z" fill="url(#wfin)"/>
+    <path d="M90 128L46 86C40 80 32 84 34 92L44 128L34 164C32 172 40 176 46 170Z" fill="url(#wfin)"/>
+    <path d="M218 128C202 86 152 72 112 90C92 99 81 113 76 128C81 143 92 157 112 166C152 184 202 170 218 128Z" fill="url(#wfish)"/>
+    <g clip-path="url(#wbody)">
+      <g fill="#06233a" opacity="0.26" mask="url(#wscalemask)">
+      <rect x="99" y="59" width="17" height="17"/>
+      <rect x="133" y="59" width="17" height="17"/>
+      <rect x="167" y="59" width="17" height="17"/>
+      <rect x="201" y="59" width="17" height="17"/>
+      <rect x="235" y="59" width="17" height="17"/>
+      <rect x="82" y="76" width="17" height="17"/>
+      <rect x="116" y="76" width="17" height="17"/>
+      <rect x="150" y="76" width="17" height="17"/>
+      <rect x="184" y="76" width="17" height="17"/>
+      <rect x="218" y="76" width="17" height="17"/>
+      <rect x="99" y="93" width="17" height="17"/>
+      <rect x="133" y="93" width="17" height="17"/>
+      <rect x="167" y="93" width="17" height="17"/>
+      <rect x="201" y="93" width="17" height="17"/>
+      <rect x="235" y="93" width="17" height="17"/>
+      <rect x="82" y="110" width="17" height="17"/>
+      <rect x="116" y="110" width="17" height="17"/>
+      <rect x="150" y="110" width="17" height="17"/>
+      <rect x="184" y="110" width="17" height="17"/>
+      <rect x="218" y="110" width="17" height="17"/>
+      <rect x="99" y="127" width="17" height="17"/>
+      <rect x="133" y="127" width="17" height="17"/>
+      <rect x="167" y="127" width="17" height="17"/>
+      <rect x="201" y="127" width="17" height="17"/>
+      <rect x="235" y="127" width="17" height="17"/>
+      <rect x="82" y="144" width="17" height="17"/>
+      <rect x="116" y="144" width="17" height="17"/>
+      <rect x="150" y="144" width="17" height="17"/>
+      <rect x="184" y="144" width="17" height="17"/>
+      <rect x="218" y="144" width="17" height="17"/>
+      <rect x="99" y="161" width="17" height="17"/>
+      <rect x="133" y="161" width="17" height="17"/>
+      <rect x="167" y="161" width="17" height="17"/>
+      <rect x="201" y="161" width="17" height="17"/>
+      <rect x="235" y="161" width="17" height="17"/>
+      <rect x="82" y="178" width="17" height="17"/>
+      <rect x="116" y="178" width="17" height="17"/>
+      <rect x="150" y="178" width="17" height="17"/>
+      <rect x="184" y="178" width="17" height="17"/>
+      <rect x="218" y="178" width="17" height="17"/>
+      <rect x="99" y="195" width="17" height="17"/>
+      <rect x="133" y="195" width="17" height="17"/>
+      <rect x="167" y="195" width="17" height="17"/>
+      <rect x="201" y="195" width="17" height="17"/>
+      <rect x="235" y="195" width="17" height="17"/>
+      </g>
+      <ellipse cx="150" cy="96" rx="64" ry="14" fill="url(#wshine)"/>
+    </g>
+    <path d="M150 98C141 112 141 144 150 158" fill="none" stroke="#06233a" stroke-opacity="0.35" stroke-width="5" stroke-linecap="round"/>
+    <path d="M134 148C150 148 160 160 156 184C148 175 137 169 124 167C124 157 127 150 134 148Z" fill="url(#wfin)" opacity="0.95"/>
+    <circle cx="186" cy="118" r="11" fill="#fff"/>
+    <circle cx="189" cy="118" r="6" fill="#081320"/>
+    <circle cx="191.5" cy="115.5" r="2" fill="#fff"/>
+    <circle cx="214" cy="70" r="7" fill="none" stroke="#8fe9ff" stroke-width="3" opacity="0.75"/>
+    <circle cx="230" cy="46" r="4" fill="none" stroke="#8fe9ff" stroke-width="2.5" opacity="0.5"/>
+  </g>
+  <text x="228" y="120" font-family="'SF Pro Display','Segoe UI Variable Display','Segoe UI','Inter',Helvetica,Arial,sans-serif" font-size="104" font-weight="800" fill="url(#wtext)" letter-spacing="-3">Fishy</text>
+  <text x="233" y="160" font-family="'SF Pro Display','Segoe UI Variable Display','Segoe UI','Inter',Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#7f93a8" letter-spacing="5.5">SEE THE BEST MOVE</text>
+</svg>

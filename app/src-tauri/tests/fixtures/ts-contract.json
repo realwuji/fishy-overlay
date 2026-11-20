@@ -1,0 +1,238 @@
+{
+  "settings": {
+    "version": 1,
+    "acceptedFairPlay": false,
+    "site": "chessCom",
+    "arrows": {
+      "show": true,
+      "count": 3,
+      "style": "classic",
+      "curveKnightMoves": true,
+      "opacity": 0.85,
+      "widthScale": 1,
+      "glow": true,
+      "animate": true,
+      "colorMode": "rank",
+      "rankColors": [
+        "#22d3b0",
+        "#3b82ff",
+        "#a78bfa",
+        "#f59e0b",
+        "#94a3b8"
+      ],
+      "forSide": "sideToMove",
+      "minClass": null
+    },
+    "labels": {
+      "show": true,
+      "placement": "cornerBadge",
+      "style": "iconText",
+      "size": 1,
+      "showTags": true,
+      "maxTags": 2,
+      "classes": {
+        "brilliant": {
+          "enabled": true,
+          "label": "Brilliant",
+          "color": "#1bbfb0",
+          "icon": "!!"
+        },
+        "great": {
+          "enabled": true,
+          "label": "Great",
+          "color": "#5b8bb9",
+          "icon": "!"
+        },
+        "best": {
+          "enabled": true,
+          "label": "Best",
+          "color": "#6fbf4a",
+          "icon": "★"
+        },
+        "excellent": {
+          "enabled": true,
+          "label": "Excellent",
+          "color": "#8cc152",
+          "icon": "👍"
+        },
+        "good": {
+          "enabled": true,
+          "label": "Good",
+          "color": "#9bb26b",
+          "icon": "✓"
+        },
+        "inaccuracy": {
+          "enabled": true,
+          "label": "Inaccuracy",
+          "color": "#f7c631",
+          "icon": "?!"
+        },
+        "mistake": {
+          "enabled": true,
+          "label": "Mistake",
+          "color": "#e58f2a",
+          "icon": "?"
+        },
+        "blunder": {
+          "enabled": true,
+          "label": "Blunder",
+          "color": "#ca3431",
+          "icon": "??"
+        }
+      },
+      "tags": {
+        "fork": {
+          "enabled": true,
+          "label": "Fork",
+          "color": "#b15cff",
+          "icon": "⑂"
+        },
+        "pin": {
+          "enabled": true,
+          "label": "Pin",
+          "color": "#ff7ab6",
+          "icon": "📌"
+        },
+        "skewer": {
+          "enabled": true,
+          "label": "Skewer",
+          "color": "#ff9f43",
+          "icon": "⟿"
+        },
+        "discovered": {
+          "enabled": true,
+          "label": "Discovered",
+          "color": "#4cc9f0",
+          "icon": "◐"
+        },
+        "hanging": {
+          "enabled": true,
+          "label": "Hanging",
+          "color": "#ff5d73",
+          "icon": "⚓"
+        },
+        "check": {
+          "enabled": true,
+          "label": "Check",
+          "color": "#ffd166",
+          "icon": "+"
+        },
+        "mate": {
+          "enabled": true,
+          "label": "Mate",
+          "color": "#ef476f",
+          "icon": "#"
+        },
+        "capture": {
+          "enabled": false,
+          "label": "Capture",
+          "color": "#8d99ae",
+          "icon": "×"
+        },
+        "promotion": {
+          "enabled": true,
+          "label": "Promotion",
+          "color": "#06d6a0",
+          "icon": "♛"
+        },
+        "sacrifice": {
+          "enabled": true,
+          "label": "Sacrifice",
+          "color": "#f78c6b",
+          "icon": "⚔"
+        },
+        "castle": {
+          "enabled": false,
+          "label": "Castle",
+          "color": "#8d99ae",
+          "icon": "♜"
+        },
+        "enPassant": {
+          "enabled": false,
+          "label": "En passant",
+          "color": "#8d99ae",
+          "icon": "e.p."
+        }
+      }
+    },
+    "evalBar": {
+      "show": true,
+      "position": "left",
+      "width": 14,
+      "showNumber": true,
+      "style": "gradient",
+      "animate": true,
+      "whiteColor": "#f4f8fc",
+      "blackColor": "#101a26"
+    },
+    "hud": {
+      "show": true,
+      "corner": "br",
+      "lines": 3,
+      "showPv": true,
+      "showExplanation": true,
+      "showDepth": true,
+      "showWinPct": true,
+      "opacity": 0.94,
+      "scale": 1,
+      "compact": false
+    },
+    "engine": {
+      "threads": 2,
+      "hashMb": 128,
+      "multiPv": 3,
+      "depthLimit": null,
+      "moveTimeMs": null,
+      "skillLevel": null,
+      "auto": true,
+      "minDisplayDepth": 12
+    },
+    "capture": {
+      "fps": 8,
+      "targetId": null
+    },
+    "theme": {
+      "mode": "dark",
+      "accent": "#22d3b0",
+      "uiScale": 1,
+      "reduceMotion": false
+    },
+    "hotkeys": {
+      "toggleOverlay": "Alt+Space",
+      "toggleHud": "Alt+H",
+      "cycleArrows": "Alt+A",
+      "recalibrate": "Alt+R"
+    }
+  },
+  "moveClasses": [
+    "brilliant",
+    "great",
+    "best",
+    "excellent",
+    "good",
+    "inaccuracy",
+    "mistake",
+    "blunder"
+  ],
+  "tacticTags": [
+    "fork",
+    "pin",
+    "skewer",
+    "discovered",
+    "hanging",
+    "check",
+    "mate",
+    "capture",
+    "promotion",
+    "sacrifice",
+    "castle",
+    "enPassant"
+  ],
+  "events": {
+    "analysis": "fishy://analysis",
+    "board": "fishy://board",
+    "status": "fishy://status",
+    "settings": "fishy://settings",
+    "overlayGeometry": "fishy://overlay-geometry"
+  }
+}
