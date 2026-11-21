@@ -28,6 +28,19 @@ pub struct Overlay {
     peek_epoch: AtomicU64,
 }
 
+/// Does the real overlay window differ from `rect` by more than a pixel? (Unknown = no.)
+fn window_drifted(w: &tauri::WebviewWindow, rect: LogicalRect) -> bool {
+    let scale = w.scale_factor().unwrap_or(1.0);
+    let (Ok(p), Ok(s)) = (w.outer_position(), w.outer_size()) else {
+        return false;
+    };
+    let (p, s) = (p.to_logical::<f64>(scale), s.to_logical::<f64>(scale));
+    (p.x - rect.x).abs() > 1.5
+        || (p.y - rect.y).abs() > 1.5
+        || (s.width - rect.width).abs() > 1.5
+        || (s.height - rect.height).abs() > 1.5
+}
+
 /// Round to whole logical pixels so jitter in window rects does not move the window.
 fn snap(r: LogicalRect) -> LogicalRect {
     LogicalRect {
@@ -75,21 +88,29 @@ impl Overlay {
     /// Move/resize the overlay to `rect` (logical desktop coordinates) if it changed.
     pub fn apply_rect(&self, rect: LogicalRect) {
         let rect = snap(rect);
-        {
+        let changed = {
             let mut last = self.last_rect.lock().unwrap_or_else(|e| e.into_inner());
-            if *last == Some(rect) {
-                return;
-            }
+            let changed = *last != Some(rect);
             *last = Some(rect);
-        }
+            changed
+        };
+        // Even when the wanted rect is unchanged the real window can have been moved by the OS
+        // (Spaces, display changes, window-server constraints); the board overlay would then be
+        // drawn offset from the board. Compare with the real frame and put it back.
         self.on_main(move |app| {
             if let Some(w) = app.get_webview_window(OVERLAY_WINDOW) {
-                let _ = w.set_position(LogicalPosition::new(rect.x, rect.y));
-                let _ = w.set_size(LogicalSize::new(rect.width, rect.height));
+                if changed || window_drifted(&w, rect) {
+                    let _ = w.set_position(LogicalPosition::new(rect.x, rect.y));
+                    let _ = w.set_size(LogicalSize::new(rect.width, rect.height));
+                }
             }
-            let _ = app.emit(EVT_OVERLAY_GEOMETRY, rect);
+            if changed {
+                let _ = app.emit(EVT_OVERLAY_GEOMETRY, rect);
+            }
         });
-        self.refresh();
+        if changed {
+            self.refresh();
+        }
     }
 
     pub fn last_rect(&self) -> Option<LogicalRect> {
