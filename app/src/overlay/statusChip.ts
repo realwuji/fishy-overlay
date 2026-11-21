@@ -36,6 +36,9 @@ export function chipText(c: ChipInput): ChipText | null {
     case 'findingBoard':
       return { title: 'Looking for the board\u2026', sub: 'Keep the whole board visible on the captured screen.', tone: 'info', busy: true, anchorless: true };
     case 'recognising':
+      // A momentary re-read (a piece mid-animation, an arrow over a piece) must not cover a board
+      // that already has analysis on screen; genuine trouble still shows the warnings below.
+      if (frame && geometry && b?.state !== 'lost' && b?.state !== 'needsCalibration') break;
       return { title: 'Reading the pieces\u2026', sub: 'Working out the position from the screen.', tone: 'info', busy: true, anchorless: !geometry };
     default:
   }
