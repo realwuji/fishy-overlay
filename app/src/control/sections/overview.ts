@@ -3,11 +3,12 @@ import type { CaptureTarget, SessionPhase } from '../../shared/types';
 import {
   analysisStore, boardStore, calibrate, currentPhase, startingStore, targetsLoadingStore, openPermissionSettings, overlayStore, redetect, refreshTargets, requestPermission,
   resumeFromFen, setOverlayEditable, setOverlayVisible, startSession, statusStore, stopSession, targetsStore,
+  setPeek,
 } from '../backend';
 import { h, icon, isMac, spinner } from '../dom';
 import { checkFen } from '../sanitize';
 import { edit, getSettings } from '../store';
-import { at, button, keycaps, reg, segmented, toggle, type Bind } from '../ui/controls';
+import { at, button, hotkeyInput, keycaps, reg, segmented, slider, toggle, type Bind } from '../ui/controls';
 import { callout, card, field, sectionShell } from '../ui/layout';
 import { openFairPlay } from '../ui/modal';
 import { navigate } from '../nav';
@@ -292,10 +293,31 @@ function overlayCard(): HTMLElement {
     field('Move the HUD', 'Unlock the overlay so you can drag the HUD. Click-through is restored when you turn this off.', t2));
 }
 
+function peekCard(): HTMLElement {
+  const mode: Bind<'off' | 'hold' | 'toggle'> = at('peek.mode');
+  const on = () => mode.get() !== 'off';
+  const tryBtn = button('Hold to try', () => {}, { cls: 'sm', title: 'Press and hold to reveal the overlay, like the hotkey does.' });
+  const press = (v: boolean) => { void setPeek(v); };
+  tryBtn.addEventListener('pointerdown', () => press(true));
+  tryBtn.addEventListener('pointerup', () => { if (mode.get() === 'hold') press(false); });
+  tryBtn.addEventListener('pointerleave', () => { if (mode.get() === 'hold') press(false); });
+  return card({ title: 'Peek mode', desc: 'Fishy keeps analysing, but nothing is drawn until you ask. Train first, then peek to check your idea.' },
+    field('Show overlay', null, segmented(mode, [
+      { value: 'off', label: 'Always', title: 'Normal behaviour: the overlay is always visible' },
+      { value: 'hold', label: 'Hold key', title: 'Visible only while the peek key is held down' },
+      { value: 'toggle', label: 'Toggle key', title: 'Press once to show, again to hide' },
+    ])),
+    field('Peek key', 'A global shortcut. In hold mode the overlay hides again the moment you let go.', hotkeyInput('peek', { label: 'Peek hotkey' }), { hidden: () => !on() }),
+    field('Fade time', 'How quickly the overlay fades in and out.', slider(at<number>('peek.fadeMs'), { min: 0, max: 600, step: 20, fmt: (v) => (v === 0 ? 'Instant' : `${v} ms`) }), { hidden: () => !on() }),
+    field('Auto-hide', 'Toggle mode: hide again after a few seconds so it never lingers.', slider(at<number>('peek.autoHideSec'), { min: 0, max: 60, step: 1, fmt: (v) => (v === 0 ? 'Never' : `${v} s`) }), { hidden: () => mode.get() !== 'toggle' }),
+    field('Status dot', 'A tiny dot beside the board while hidden, so you know Fishy is still working.', toggle(at<boolean>('peek.indicator'), { label: 'Status dot' }), { hidden: () => !on() }),
+    field('Try it', 'Test the reveal without leaving this window (needs a running session).', tryBtn, { hidden: () => !on() }));
+}
+
 function hotkeyCard(): HTMLElement {
   const list = h('dl', { class: 'hk-list' });
   const rows: [string, keyof ReturnType<typeof getSettings>['hotkeys']][] = [
-    ['Show or hide overlay', 'toggleOverlay'], ['Show or hide HUD', 'toggleHud'], ['Cycle arrow count', 'cycleArrows'], ['Re-detect board', 'recalibrate'],
+    ['Show or hide overlay', 'toggleOverlay'], ['Show or hide HUD', 'toggleHud'], ['Cycle arrow count', 'cycleArrows'], ['Re-detect board', 'recalibrate'], ['Peek (when enabled)', 'peek'],
   ];
   reg(() => list.replaceChildren(...rows.flatMap(([label, k]) => [h('dt', null, label), h('dd', null, keycaps(getSettings().hotkeys[k]))])));
   return card({ title: 'Hotkey cheat sheet', actions: button('Edit', () => navigate('capture'), { cls: 'sm ghost' }) }, list);
@@ -317,5 +339,6 @@ export function overviewSection(): HTMLElement {
     calibrateCard(),
     permissionCard(),
     overlayCard(),
+    peekCard(),
     hotkeyCard());
 }

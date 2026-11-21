@@ -94,6 +94,7 @@ pub const EVT_ANALYSIS: &str = "fishy://analysis";
 pub const EVT_BOARD: &str = "fishy://board";
 pub const EVT_STATUS: &str = "fishy://status";
 pub const EVT_SETTINGS: &str = "fishy://settings";
+pub const EVT_PEEK: &str = "fishy://peek";
 pub const EVT_OVERLAY_GEOMETRY: &str = "fishy://overlay-geometry";
 
 pub const MAIN_WINDOW: &str = "main";

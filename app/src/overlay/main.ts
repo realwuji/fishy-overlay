@@ -127,11 +127,33 @@ function setHudCorner(corner: Corner): void {
   }
 }
 
+// ------------------------------------------------------------- peek mode
+// Analysis and drawing keep running; peek only fades the whole overlay in and out.
+const dot = document.createElement('div');
+dot.id = 'peek-dot';
+document.body.appendChild(dot);
+let revealed = false;
+
+function applyPeek(): void {
+  const hidden = settings.peek.mode !== 'off' && !revealed;
+  const ms = settings.theme.reduceMotion ? 0 : settings.peek.fadeMs;
+  document.documentElement.style.setProperty('--peek-ms', `${ms}ms`);
+  document.body.classList.toggle('peek-hidden', hidden);
+  dot.classList.toggle('on', hidden && settings.peek.indicator);
+  const w = window.innerWidth, hgt = window.innerHeight;
+  const x = geometry ? geometry.x + geometry.size + 10 : w - 20;
+  const y = geometry ? geometry.y + geometry.size - 14 : hgt - 20;
+  dot.style.left = `${Math.max(4, Math.min(w - 14, x))}px`;
+  dot.style.top = `${Math.max(4, Math.min(hgt - 14, y))}px`;
+}
+
 // -------------------------------------------------------------- live mode
 async function startLive(): Promise<void> {
   try {
     settings = await call('get_settings');
     renderer.update({ settings });
+    revealed = await call('get_peek').catch(() => false);
+    applyPeek();
   } catch (err) {
     console.error('get_settings failed', err);
   }
@@ -144,6 +166,7 @@ async function startLive(): Promise<void> {
     boardState = b;
     geometry = b.geometry;
     renderer.update({ geometry });
+    applyPeek();
     syncChip();
   });
   await on<SessionStatus>(EVT.status, (s) => {
@@ -156,9 +179,14 @@ async function startLive(): Promise<void> {
   } catch (err) {
     console.error('get_status failed', err);
   }
+  await on<{ revealed: boolean }>(EVT.peek, (p) => {
+    revealed = p.revealed;
+    applyPeek();
+  });
   await on<Settings>(EVT.settings, (s) => {
     settings = s;
     renderer.update({ settings });
+    applyPeek();
     syncChip();
   });
   // The overlay window moved or resized on the desktop: re-sync the canvas size.
@@ -200,6 +228,7 @@ function applyDemoParams(): void {
   if (p.has('min')) s.arrows.minClass = p.get('min') as MoveClass;
   if (p.get('theme') === 'light' || p.get('theme') === 'dark') s.theme.mode = p.get('theme') as 'light' | 'dark';
   if (p.has('still')) s.theme.reduceMotion = true;
+  if (p.get('peek') === 'hold' || p.get('peek') === 'toggle') { s.peek.mode = p.get('peek') as 'hold' | 'toggle'; s.peek.indicator = true; }
   settings = s;
 }
 
@@ -284,6 +313,9 @@ function startDemo(): void {
   document.body.appendChild(hint);
 
   applyDemoParams();
+  applyPeek();
+  window.addEventListener('keydown', (e) => { if ((e.key === 'x' || e.key === 'X') && !e.repeat) { revealed = settings.peek.mode === 'toggle' ? !revealed : true; applyPeek(); } });
+  window.addEventListener('keyup', (e) => { if ((e.key === 'x' || e.key === 'X') && settings.peek.mode === 'hold') { revealed = false; applyPeek(); } });
   refreshDemo();
   syncLoadTimer();
 

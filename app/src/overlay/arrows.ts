@@ -3,9 +3,19 @@
 // slide to new squares, fade in/out, and re-colour instead of snapping.
 import type { AnalysisFrame, BoardGeometry, CandidateMove, MoveClass, Settings, TacticTag } from '../shared/types';
 import { Spring, clamp, lerp } from './anim';
-import { classIndex, displayCol, displayRow, isKnightMove, parseSquare } from './chess';
+import { classIndex, displayCol, fenBoard, displayRow, isKnightMove, parseSquare } from './chess';
 import { blueOf, greenOf, onColor, packRgb, parseColor, redOf, rgba } from './color';
 import { Env, font, roundRect, snap, textWidth } from './env';
+
+/** Filled chess glyph (text presentation) for the piece on `from` in `fen`, or '' when unknown. */
+function pieceGlyph(fen: string, from: string): string {
+  if (!fen || from.length < 2) return '';
+  const file = from.charCodeAt(0) - 97, rank = from.charCodeAt(1) - 49;
+  if (file < 0 || file > 7 || rank < 0 || rank > 7) return '';
+  const ch = fenBoard(fen)[rank * 8 + file].toLowerCase();
+  const g: Record<string, string> = { p: '\u265F\uFE0E', n: '\u265E', b: '\u265D', r: '\u265C', q: '\u265B', k: '\u265A' };
+  return g[ch] ?? '';
+}
 
 interface BadgeModel {
   kind: 'icon' | 'text' | 'iconText';
@@ -208,7 +218,9 @@ export class ArrowLayer {
       if (!cs.label && kind !== 'icon') kind = 'icon';
       if (!icon && !cs.label) icon = '?';
       const f = font(BADGE_FONT_W, 10);
-      const label = clipLabel(cs.label);
+      // Append the moving piece (a tiny pawn, knight, ...) in the badge's own colours so the move type reads at a glance.
+      const glyph = pieceGlyph(this.fen, e.cand.from);
+      const label = glyph && kind !== 'icon' ? `${clipLabel(cs.label)} ${glyph}`.trim() : clipLabel(cs.label);
       e.badge = {
         kind, color, fg: onColor(color), icon, text: label,
         iconW10: icon ? textWidth(ctx, f, icon) : 0,

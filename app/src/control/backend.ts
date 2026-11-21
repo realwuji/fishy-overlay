@@ -208,6 +208,11 @@ export async function setOverlayVisible(visible: boolean): Promise<void> {
   try { if (inTauri()) await call('set_overlay_visible', { visible }); } catch (err) { fail(err); }
 }
 
+/** Reveal / hide the overlay content in peek mode (used by the "Hold to try" button). */
+export async function setPeek(revealed: boolean): Promise<void> {
+  try { if (inTauri()) await call('set_peek', { revealed }); } catch (err) { fail(err); }
+}
+
 /** Editable = overlay accepts the mouse so you can drag the HUD (click-through off). */
 export async function setOverlayEditable(editable: boolean): Promise<void> {
   overlayStore.set({ ...overlayStore.get(), editable });

@@ -57,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   capture: { fps: 8, targetId: null },
   theme: { mode: 'dark', accent: '#22d3b0', uiScale: 1, reduceMotion: false },
   hotkeys: {
-    toggleOverlay: 'Alt+Space', toggleHud: 'Alt+H', cycleArrows: 'Alt+A', recalibrate: 'Alt+R',
+    toggleOverlay: 'Alt+Space', toggleHud: 'Alt+H', cycleArrows: 'Alt+A', recalibrate: 'Alt+R', peek: 'Alt+X',
   },
+  peek: { mode: 'off', fadeMs: 140, autoHideSec: 0, indicator: false },
 };

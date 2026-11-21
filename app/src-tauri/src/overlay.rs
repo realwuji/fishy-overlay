@@ -11,7 +11,7 @@
 
 use crate::model::{EVT_OVERLAY_GEOMETRY, LogicalRect, OVERLAY_WINDOW};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager};
 
 pub struct Overlay {
@@ -22,6 +22,10 @@ pub struct Overlay {
     /// A session is running (the overlay is never shown otherwise).
     session_active: AtomicBool,
     click_through: AtomicBool,
+    /// Peek mode: the overlay content is currently revealed.
+    peek_revealed: AtomicBool,
+    /// Bumped on every peek change so stale auto-hide timers do nothing.
+    peek_epoch: AtomicU64,
 }
 
 /// Round to whole logical pixels so jitter in window rects does not move the window.
@@ -42,6 +46,8 @@ impl Overlay {
             wanted: AtomicBool::new(true),
             session_active: AtomicBool::new(false),
             click_through: AtomicBool::new(true),
+            peek_revealed: AtomicBool::new(false),
+            peek_epoch: AtomicU64::new(0),
         }
     }
 
@@ -107,6 +113,20 @@ impl Overlay {
     pub fn set_wanted(&self, visible: bool) {
         self.wanted.store(visible, Ordering::Relaxed);
         self.refresh();
+    }
+
+    pub fn peek_revealed(&self) -> bool {
+        self.peek_revealed.load(Ordering::Relaxed)
+    }
+
+    /// Store the peek state and return the new epoch (for auto-hide timers).
+    pub fn set_peek_revealed(&self, revealed: bool) -> u64 {
+        self.peek_revealed.store(revealed, Ordering::Relaxed);
+        self.peek_epoch.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
+    pub fn peek_epoch(&self) -> u64 {
+        self.peek_epoch.load(Ordering::Relaxed)
     }
 
     pub fn wanted(&self) -> bool {

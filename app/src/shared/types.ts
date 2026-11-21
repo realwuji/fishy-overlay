@@ -90,6 +90,7 @@ export interface CaptureTarget {
 // ---------------------------------------------------------------- Settings
 export type ArrowStyle = 'classic' | 'slim' | 'dotted' | 'pill';
 export type Corner = 'tl' | 'tr' | 'bl' | 'br';
+export type PeekMode = 'off' | 'hold' | 'toggle';
 export type Site = 'chessCom' | 'lichess' | 'generic';
 
 export interface ClassStyle { enabled: boolean; label: string; color: string; icon: string; }
@@ -144,7 +145,14 @@ export interface Settings {
   /** `orientation`: which colour is at the bottom of the screen. Absent = 'auto' (detected). */
   capture: { fps: number; targetId: string | null; orientation?: 'auto' | 'white' | 'black' };
   theme: { mode: 'dark' | 'light' | 'system'; accent: string; uiScale: number; reduceMotion: boolean };
-  hotkeys: { toggleOverlay: string; toggleHud: string; cycleArrows: string; recalibrate: string };
+  hotkeys: { toggleOverlay: string; toggleHud: string; cycleArrows: string; recalibrate: string; peek: string };
+  /** Peek mode: analysis keeps running but the overlay only draws while the peek key says so. */
+  peek: {
+    mode: PeekMode;
+    fadeMs: number;            // 0..1000
+    autoHideSec: number;       // toggle mode: hide again after N s (0 = never)
+    indicator: boolean;        // tiny dot while hidden
+  };
 }
 
 // ------------------------------------------------------------ IPC contract
@@ -154,6 +162,7 @@ export const EVT = {
   board: 'fishy://board',         // BoardState
   status: 'fishy://status',       // SessionStatus
   settings: 'fishy://settings',   // Settings (after any change, to all windows)
+  peek: 'fishy://peek',           // { revealed: boolean } overlay content shown/hidden (peek mode)
   overlayGeometry: 'fishy://overlay-geometry', // { x,y,width,height } logical desktop rect of the overlay window
 } as const;
 
@@ -171,6 +180,8 @@ export interface Commands {
   set_known_position(args: { fen: string }): BoardState; // resume mid-game from FEN
   /** 'auto' detects it (default); 'white'/'black' is final. Stored as capture.orientation. */
   set_board_orientation(args: { orientation: 'auto' | 'white' | 'black' }): Settings;
+  set_peek(args: { revealed: boolean }): void;
+  get_peek(): boolean;
   set_overlay_visible(args: { visible: boolean }): void;
   set_click_through(args: { enabled: boolean }): void; // false = overlay editable (drag HUD)
   request_screen_permission(): boolean;

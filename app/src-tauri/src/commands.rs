@@ -112,6 +112,17 @@ pub fn set_overlay_visible(state: State<'_, AppState>, visible: bool) {
     state.overlay.set_wanted(visible);
 }
 
+/// Reveal or hide the overlay content in peek mode (used by the control window's preview button).
+#[tauri::command]
+pub fn set_peek(app: tauri::AppHandle, revealed: bool) {
+    crate::actions::set_peek(&app, revealed);
+}
+
+#[tauri::command]
+pub fn get_peek(state: State<'_, AppState>) -> bool {
+    state.overlay.peek_revealed()
+}
+
 #[tauri::command]
 pub fn set_click_through(state: State<'_, AppState>, enabled: bool) {
     state.overlay.set_click_through(enabled);

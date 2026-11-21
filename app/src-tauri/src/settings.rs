@@ -102,6 +102,39 @@ pub struct HotkeySettings {
     pub toggle_hud: String,
     pub cycle_arrows: String,
     pub recalibrate: String,
+    /// Reveal the overlay while held (or toggle it) when `peek.mode` is not `off`.
+    pub peek: String,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+pub const PEEK_FADE_MIN_MS: u32 = 0;
+pub const PEEK_FADE_MAX_MS: u32 = 1000;
+pub const PEEK_AUTOHIDE_MAX_SEC: u32 = 120;
+
+/// Peek mode: Fishy keeps analysing but only draws while the peek key says so.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum PeekMode {
+    /// Always visible (normal behaviour).
+    #[default]
+    Off,
+    /// Visible only while the key is held.
+    Hold,
+    /// Key flips visible / hidden.
+    Toggle,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeekSettings {
+    pub mode: PeekMode,
+    /// Fade duration in ms (0 = instant).
+    pub fade_ms: u32,
+    /// Toggle mode: hide again after this many seconds (0 = stay until toggled).
+    pub auto_hide_sec: u32,
+    /// Draw a tiny dot while hidden so you can tell Fishy is still working.
+    pub indicator: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -114,6 +147,7 @@ pub struct Settings {
     pub engine: EngineSettings,
     pub capture: CaptureSettings,
     pub hotkeys: HotkeySettings,
+    pub peek: PeekSettings,
     /// Every other field of the TS `Settings` (version, arrows, labels, ...).
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -181,8 +215,9 @@ pub fn default_json() -> Value {
         "theme": { "mode": "dark", "accent": "#22d3b0", "uiScale": 1, "reduceMotion": false },
         "hotkeys": {
             "toggleOverlay": "Alt+Space", "toggleHud": "Alt+H",
-            "cycleArrows": "Alt+A", "recalibrate": "Alt+R"
-        }
+            "cycleArrows": "Alt+A", "recalibrate": "Alt+R", "peek": "Alt+X"
+        },
+        "peek": { "mode": "off", "fadeMs": 140, "autoHideSec": 0, "indicator": false }
     })
 }
 
@@ -227,6 +262,8 @@ impl Settings {
             .map(|t| t.clamp(MOVE_TIME_MIN_MS, MOVE_TIME_MAX_MS));
         e.skill_level = e.skill_level.map(|s| s.min(SKILL_MAX));
         e.min_display_depth = e.min_display_depth.min(MIN_DISPLAY_DEPTH_MAX);
+        self.peek.fade_ms = self.peek.fade_ms.clamp(PEEK_FADE_MIN_MS, PEEK_FADE_MAX_MS);
+        self.peek.auto_hide_sec = self.peek.auto_hide_sec.min(PEEK_AUTOHIDE_MAX_SEC);
         self.capture.fps = self.capture.fps.clamp(FPS_MIN, FPS_MAX);
         if self.capture.target_id.as_deref().is_some_and(str::is_empty) {
             self.capture.target_id = None;

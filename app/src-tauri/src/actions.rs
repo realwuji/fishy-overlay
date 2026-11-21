@@ -4,10 +4,11 @@
 //! on a short-lived helper thread so it never stalls the main/UI thread.
 
 use crate::hotkeys::{self, HotkeyAction};
-use crate::model::{EVT_SETTINGS, MAIN_WINDOW};
-use crate::settings::Settings;
+use crate::model::{EVT_PEEK, EVT_SETTINGS, MAIN_WINDOW};
+use crate::settings::{PeekMode, Settings};
 use crate::state;
 use std::thread;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Persist and broadcast new settings; keeps the session and hotkeys in step.
@@ -17,8 +18,15 @@ pub fn commit_settings(app: &AppHandle, settings: Settings) -> Result<Settings, 
     let saved = st.settings.set(settings)?;
     let _ = app.emit(EVT_SETTINGS, &saved);
     st.session.settings_changed();
-    if saved.hotkeys != old.hotkeys {
-        report_hotkey_warnings(app, hotkeys::apply(app, &saved.hotkeys));
+    if saved.hotkeys != old.hotkeys || saved.peek.mode != old.peek.mode {
+        report_hotkey_warnings(
+            app,
+            hotkeys::apply(app, &saved.hotkeys, saved.peek.mode != PeekMode::Off),
+        );
+    }
+    if saved.peek.mode != old.peek.mode {
+        // A new mode always starts hidden (or irrelevant when off).
+        set_peek(app, false);
     }
     Ok(saved)
 }
@@ -112,5 +120,56 @@ pub fn run_hotkey(app: &AppHandle, action: HotkeyAction) {
         HotkeyAction::ToggleHud => toggle_hud(app),
         HotkeyAction::CycleArrows => cycle_arrows(app),
         HotkeyAction::Recalibrate => recalibrate(app),
+        HotkeyAction::Peek => peek_key(app, true),
+    }
+}
+
+/// Longest a held peek key may stay "down" without a release event (missed edge failsafe).
+const PEEK_HOLD_FAILSAFE: Duration = Duration::from_secs(45);
+
+/// Reveal or hide the overlay content (peek mode) and tell the overlay window.
+pub fn set_peek(app: &AppHandle, revealed: bool) {
+    let st = state::get(app);
+    let epoch = st.overlay.set_peek_revealed(revealed);
+    let _ = app.emit(EVT_PEEK, serde_json::json!({ "revealed": revealed }));
+    if !revealed {
+        return;
+    }
+    // Auto-hide: toggle mode honours `autoHideSec`; hold mode has a failsafe in case a release is missed.
+    let settings = st.settings.get();
+    let after = match settings.peek.mode {
+        PeekMode::Toggle if settings.peek.auto_hide_sec > 0 => {
+            Some(Duration::from_secs(u64::from(settings.peek.auto_hide_sec)))
+        }
+        PeekMode::Hold => Some(PEEK_HOLD_FAILSAFE),
+        _ => None,
+    };
+    if let Some(after) = after {
+        let app = app.clone();
+        thread::spawn(move || {
+            thread::sleep(after);
+            let st = state::get(&app);
+            if st.overlay.peek_epoch() == epoch && st.overlay.peek_revealed() {
+                set_peek(&app, false);
+            }
+        });
+    }
+}
+
+/// Peek key edge. `pressed == false` is the release (only meaningful in hold mode).
+pub fn peek_key(app: &AppHandle, pressed: bool) {
+    let st = state::get(app);
+    match st.settings.get().peek.mode {
+        PeekMode::Off => {}
+        PeekMode::Hold => {
+            if pressed != st.overlay.peek_revealed() {
+                set_peek(app, pressed);
+            }
+        }
+        PeekMode::Toggle => {
+            if pressed {
+                set_peek(app, !st.overlay.peek_revealed());
+            }
+        }
     }
 }

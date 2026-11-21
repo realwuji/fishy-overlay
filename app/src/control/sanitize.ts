@@ -102,7 +102,7 @@ export function sanitize(raw: unknown): Settings {
   const D = DEFAULT_SETTINGS;
   const r = rec(raw);
   const a = rec(r.arrows), l = rec(r.labels), e = rec(r.evalBar), hd = rec(r.hud), en = rec(r.engine);
-  const cp = rec(r.capture), th = rec(r.theme), hk = rec(r.hotkeys);
+  const cp = rec(r.capture), th = rec(r.theme), hk = rec(r.hotkeys), pk = rec(r.peek);
 
   const rankIn = Array.isArray(a.rankColors) ? a.rankColors : [];
   const rankColors = D.arrows.rankColors.map((d, i) => color(rankIn[i], d));
@@ -190,6 +190,12 @@ export function sanitize(raw: unknown): Settings {
       reduceMotion: bool(th.reduceMotion, D.theme.reduceMotion),
     },
     hotkeys,
+    peek: {
+      mode: oneOf(pk.mode, ['off', 'hold', 'toggle'] as const, D.peek.mode),
+      fadeMs: num(pk.fadeMs, 0, 1000, D.peek.fadeMs, true),
+      autoHideSec: num(pk.autoHideSec, 0, 120, D.peek.autoHideSec, true),
+      indicator: bool(pk.indicator, D.peek.indicator),
+    },
   };
 }
 

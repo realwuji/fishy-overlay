@@ -14,6 +14,7 @@ pub enum HotkeyAction {
     ToggleHud,
     CycleArrows,
     Recalibrate,
+    Peek,
 }
 
 impl HotkeyAction {
@@ -23,6 +24,7 @@ impl HotkeyAction {
             HotkeyAction::ToggleHud => "Toggle HUD",
             HotkeyAction::CycleArrows => "Cycle arrows",
             HotkeyAction::Recalibrate => "Recalibrate board",
+            HotkeyAction::Peek => "Peek",
         }
     }
 }
@@ -40,16 +42,20 @@ pub fn parse_hotkey(text: &str) -> Result<Option<Shortcut>, String> {
 
 /// Parse all four bindings, reporting problems per action. Returns the usable
 /// bindings plus human-readable warnings (parse errors, duplicates).
-pub fn plan(h: &HotkeySettings) -> (Vec<(HotkeyAction, Shortcut)>, Vec<String>) {
+pub fn plan(h: &HotkeySettings, peek_enabled: bool) -> (Vec<(HotkeyAction, Shortcut)>, Vec<String>) {
     let entries = [
         (HotkeyAction::ToggleOverlay, &h.toggle_overlay),
         (HotkeyAction::ToggleHud, &h.toggle_hud),
         (HotkeyAction::CycleArrows, &h.cycle_arrows),
         (HotkeyAction::Recalibrate, &h.recalibrate),
+        (HotkeyAction::Peek, &h.peek),
     ];
     let mut ok: Vec<(HotkeyAction, Shortcut)> = Vec::new();
     let mut warnings = Vec::new();
     for (action, text) in entries {
+        if action == HotkeyAction::Peek && !peek_enabled {
+            continue;
+        }
         match parse_hotkey(text) {
             Ok(None) => {}
             Ok(Some(sc)) => {
@@ -71,18 +77,21 @@ pub fn plan(h: &HotkeySettings) -> (Vec<(HotkeyAction, Shortcut)>, Vec<String>) 
 }
 
 /// Replace all registered shortcuts with the ones in `h`. Returns warnings.
-pub fn apply(app: &AppHandle, h: &HotkeySettings) -> Vec<String> {
+pub fn apply(app: &AppHandle, h: &HotkeySettings, peek_enabled: bool) -> Vec<String> {
     let gs = app.global_shortcut();
     let mut warnings = Vec::new();
     if let Err(e) = gs.unregister_all() {
         warnings.push(format!("Could not clear previous shortcuts: {e}"));
     }
-    let (bindings, mut parse_warnings) = plan(h);
+    let (bindings, mut parse_warnings) = plan(h, peek_enabled);
     warnings.append(&mut parse_warnings);
     for (action, shortcut) in bindings {
         let result = gs.on_shortcut(shortcut, move |app, _sc, event| {
-            if event.state == ShortcutState::Pressed {
-                actions::run_hotkey(app, action);
+            match (action, event.state) {
+                // Peek needs the release edge for hold mode.
+                (HotkeyAction::Peek, state) => actions::peek_key(app, state == ShortcutState::Pressed),
+                (_, ShortcutState::Pressed) => actions::run_hotkey(app, action),
+                _ => {}
             }
         });
         if let Err(e) = result {
@@ -102,9 +111,10 @@ mod tests {
 
     #[test]
     fn default_hotkeys_parse() {
-        let (ok, warnings) = plan(&Settings::default().hotkeys);
+        let (ok, warnings) = plan(&Settings::default().hotkeys, true);
         assert!(warnings.is_empty(), "{warnings:?}");
-        assert_eq!(ok.len(), 4);
+        assert_eq!(ok.len(), 5);
+        assert_eq!(plan(&Settings::default().hotkeys, false).0.len(), 4);
     }
 
     #[test]
@@ -140,7 +150,8 @@ mod tests {
         h.toggle_hud = "Alt+Space".into();
         h.cycle_arrows = "nonsense++".into();
         h.recalibrate = String::new();
-        let (ok, warnings) = plan(&h);
+        h.peek = String::new();
+        let (ok, warnings) = plan(&h, true);
         assert_eq!(ok.len(), 1);
         assert_eq!(warnings.len(), 2);
         assert!(warnings.iter().any(|w| w.contains("same shortcut")));

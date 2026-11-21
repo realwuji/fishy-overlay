@@ -60,7 +60,7 @@ pub fn run() {
             });
 
             tray::build(app)?;
-            let warnings = hotkeys::apply(&handle, &store.get().hotkeys);
+            let warnings = hotkeys::apply(&handle, &store.get().hotkeys, store.get().peek.mode != settings::PeekMode::Off);
             actions::report_hotkey_warnings(&handle, warnings);
             if let Some(reason) = recovered {
                 session.note(Some(format!(
@@ -98,6 +98,8 @@ pub fn run() {
             commands::set_known_position,
             commands::set_board_orientation,
             commands::set_overlay_visible,
+            commands::set_peek,
+            commands::get_peek,
             commands::set_click_through,
             commands::request_screen_permission,
             commands::open_screen_permission_settings,

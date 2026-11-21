@@ -201,7 +201,14 @@
       "toggleOverlay": "Alt+Space",
       "toggleHud": "Alt+H",
       "cycleArrows": "Alt+A",
-      "recalibrate": "Alt+R"
+      "recalibrate": "Alt+R",
+      "peek": "Alt+X"
+    },
+    "peek": {
+      "mode": "off",
+      "fadeMs": 140,
+      "autoHideSec": 0,
+      "indicator": false
     }
   },
   "moveClasses": [
@@ -233,6 +240,7 @@
     "board": "fishy://board",
     "status": "fishy://status",
     "settings": "fishy://settings",
+    "peek": "fishy://peek",
     "overlayGeometry": "fishy://overlay-geometry"
   }
 }
