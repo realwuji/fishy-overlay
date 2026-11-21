@@ -164,11 +164,50 @@ const mockBoard = (fen: string | null): BoardState => ({
   geometry: { x: 360, y: 120, size: 640, flipped: false }, fen, lastMove: null, state: 'tracking', confidence: 0.94, calibrated: true,
 });
 
+export const NOT_START_HINT = 'This is not the starting position. Paste the current position (FEN) below and press Calibrate from this position.';
+/** Dev-only: this FEN makes the mock fail, so the error copy can be seen in browser preview. */
+export const MOCK_FAIL_FEN = '8/8/8/8/8/8/8/K6k w - - 0 1';
+
 export async function calibrate(): Promise<void> {
   try {
     const b = inTauri() ? await call('calibrate_start_position') : mockBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     boardStore.set(b);
     toast(b.state === 'tracking' ? 'Board calibrated. Tracking moves.' : 'Calibration finished, but the board was not found. Check it is fully visible.', { kind: b.state === 'tracking' ? 'ok' : 'warn' });
+  } catch (err) {
+    const m = typeof err === 'string' ? err : err instanceof Error ? err.message : '';
+    if (m.includes('start position not recognised')) {
+      toast(NOT_START_HINT, { kind: 'warn' });
+      const fen = document.getElementById('fen-input') as HTMLInputElement | null;
+      fen?.focus();
+    } else fail(err);
+  }
+}
+
+/** Learn the piece set from the screen plus the position the user states, then track from it. */
+export async function calibrateFromPosition(fen: string): Promise<void> {
+  try {
+    const known = boardStore.get().calibrated; // read before the call
+    let b: BoardState;
+    if (inTauri()) b = await call('calibrate_from_position', { fen });
+    else {
+      if (fen.split(/\s+/)[0] === MOCK_FAIL_FEN.split(' ')[0]) {
+        throw 'The picture does not match this position (3/2 pieces seen). Check the FEN, that the board is fully visible, and that nothing covers the pieces (arrows, popups).';
+      }
+      b = mockBoard(fen);
+    }
+    boardStore.set(b);
+    const note = statusStore.get().message;
+    if (note && note.startsWith('Pieces learned. Not seen yet')) toast(note, { kind: 'warn' });
+    else toast(known ? 'Position set. Tracking moves.' : 'Pieces learned from this position. Tracking moves.', { kind: 'ok' });
+  } catch (err) { fail(err); }
+}
+
+/** Forget the saved calibration for this site and use the built-in pieces again. */
+export async function resetPieces(): Promise<void> {
+  try {
+    const b = inTauri() ? await call('reset_pieces') : mockBoard(boardStore.get().fen);
+    boardStore.set(b);
+    toast('Back to the built-in pieces.', { kind: 'ok' });
   } catch (err) { fail(err); }
 }
 

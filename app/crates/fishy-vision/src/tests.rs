@@ -825,3 +825,197 @@ fn tracker_uses_the_mover_hint_when_joining_a_game() {
         assert_eq!(fen.split(' ').nth(1), Some(side), "{hint:?}: {fen}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// mid-game calibration
+// ---------------------------------------------------------------------------
+
+use crate::{learn_from_placement_auto, learned_kinds, merge_templates, missing_kind_names, placement_is_legal};
+
+const THEMES: [(&str, Theme); 4] = [
+    ("green", GREEN),
+    ("brown", BROWN),
+    ("blue", BLUE),
+    ("custom", CUSTOM),
+];
+
+fn scene_of(fen: &str, theme: Theme, white_bottom: bool) -> Scene {
+    let mut sc = Scene::new(placement_from_fen(fen));
+    sc.theme = theme;
+    sc.white_bottom = white_bottom;
+    sc
+}
+
+#[test]
+fn auto_learning_finds_orientation_and_reads_back() {
+    for (name, theme) in THEMES {
+        for white_bottom in [true, false] {
+            for fen in [MID_FENS[0], MID_FENS[1], MID_FENS[2]] {
+                let sc = scene_of(fen, theme, white_bottom);
+                let frame = render(&sc);
+                let rect = detect_board(&frame, Site::Generic).expect("board");
+                let truth = placement_from_fen(fen);
+                let a = learn_from_placement_auto(&frame, &rect, &truth, None)
+                    .unwrap_or_else(|e| panic!("{name} white_bottom={white_bottom} {fen}: {e}"));
+                let want = if white_bottom {
+                    Orientation::White
+                } else {
+                    Orientation::Black
+                };
+                assert_eq!(a.orientation, want, "{name} {fen}");
+                assert_reads(&frame, &rect, &a.templates, want, &truth, name);
+                // With a hint the answer is the same.
+                let h = learn_from_placement_auto(&frame, &rect, &truth, Some(want)).unwrap();
+                assert_eq!(h.orientation, want);
+            }
+        }
+    }
+}
+
+#[test]
+fn auto_learning_rejects_a_wrong_fen_and_tolerates_arrows() {
+    let fen = MID_FENS[0];
+    let mut sc = scene_of(fen, BROWN, true);
+    let frame = render(&sc);
+    let rect = detect_board(&frame, Site::Generic).unwrap();
+    // Two pieces moved to empty squares: occupancy no longer fits.
+    let mut bad = placement_from_fen(fen);
+    bad.swap(0, 24); // a8 rook <-> empty a5
+    bad.swap(7, 31);
+    bad.swap(4, 28);
+    let err = learn_from_placement_auto(&frame, &rect, &bad, None).unwrap_err();
+    assert!(
+        err.to_string().contains("pieces seen") || err.to_string().contains("do not reproduce"),
+        "unexpected error: {err}"
+    );
+    // Arrows over two pieces are fine.
+    sc.arrows = vec![(62, 45), (57, 42)];
+    let frame = render(&sc);
+    let truth = placement_from_fen(fen);
+    let a = learn_from_placement_auto(&frame, &rect, &truth, None).expect("arrows tolerated");
+    assert_eq!(a.orientation, Orientation::White);
+}
+
+#[test]
+fn auto_learning_a_symmetric_occupancy_uses_colours_or_refuses() {
+    // Occupancy is identical upside down: only the piece colours tell the sides apart.
+    let fen = "8/2p5/3k4/8/8/4K3/5P2/8";
+    for white_bottom in [true, false] {
+        let sc = scene_of(fen, GREEN, white_bottom);
+        let frame = render(&sc);
+        let rect = detect_board(&frame, Site::Generic).expect("board");
+        let truth = placement_from_fen(fen);
+        let want = if white_bottom {
+            Orientation::White
+        } else {
+            Orientation::Black
+        };
+        match learn_from_placement_auto(&frame, &rect, &truth, None) {
+            Ok(a) => assert_eq!(a.orientation, want, "never the wrong side"),
+            Err(e) => {
+                let m = e.to_string();
+                assert!(
+                    m.contains("which side") || m.contains("piece colours"),
+                    "{m}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn learned_kinds_masks_missing_pieces() {
+    // No queens and no black knights.
+    let fen = "r1b1kb1r/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/R1B1KB1R";
+    let sc = scene_of(fen, GREEN, true);
+    let frame = render(&sc);
+    let rect = detect_board(&frame, Site::Generic).unwrap();
+    let a = learn_from_placement_auto(&frame, &rect, &placement_from_fen(fen), None).unwrap();
+    // P N B R Q K p n b r q k
+    assert_eq!(
+        a.kinds_seen,
+        [
+            true, false, true, true, false, true, true, false, true, true, false, true
+        ]
+    );
+    assert_eq!(learned_kinds(&a.templates), a.kinds_seen);
+    assert_eq!(missing_kind_names(&a.kinds_seen), ["knight", "queen"]);
+    assert_eq!(learned_kinds(&Templates::default()), [false; 12]);
+}
+
+#[test]
+fn placement_legality() {
+    let p = |fen: &str| placement_from_fen(fen);
+    assert!(placement_is_legal(&p(MID_FENS[0])));
+    assert!(placement_is_legal(&p(MID_FENS[3])));
+    // no black king
+    assert!(!placement_is_legal(&placement_from_fen("8/8/8/8/8/8/8/4K3")));
+    // nine white pawns
+    assert!(!placement_is_legal(&placement_from_fen(
+        "k7/8/8/8/8/PPPPPPPP/P7/K7"
+    )));
+    // pawn on the last rank
+    assert!(!placement_is_legal(&placement_from_fen("k6P/8/8/8/8/8/8/K7")));
+    // both kings attacked: black rook gives check to white, white rook gives check to black
+    assert!(!placement_is_legal(&placement_from_fen("k3R3/8/8/8/8/8/8/K3r3")));
+}
+
+#[test]
+fn merging_adds_the_missing_kinds_and_refuses_foreign_sets() {
+    // A has no queens; B shows them. Same theme: merged reads both.
+    let fen_a = "r1b1kb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1B1KB1R";
+    let learn_in = |fen: &str, theme: Theme| {
+        let frame = render(&scene_of(fen, theme, true));
+        let rect = detect_board(&frame, Site::Generic).unwrap();
+        let a = learn_from_placement_auto(&frame, &rect, &placement_from_fen(fen), None).unwrap();
+        (frame, rect, a)
+    };
+    let (_, _, a) = learn_in(fen_a, GREEN);
+    assert!(!a.kinds_seen[4] && !a.kinds_seen[10]);
+    // B contains queens but, learned alone from a position with few pieces, misses rooks.
+    let fen_b = "3qk3/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/3QK3";
+    let (frame_b, rect_b, b) = learn_in(fen_b, GREEN);
+    assert!(b.kinds_seen[4] && b.kinds_seen[10] && !b.kinds_seen[3]);
+    let truth_b = placement_from_fen(fen_b);
+    let out = merge_templates(
+        &a.templates,
+        &b.templates,
+        &frame_b,
+        &rect_b,
+        &truth_b,
+        Orientation::White,
+    );
+    assert!(out.merged, "same theme merges");
+    let k = learned_kinds(&out.templates);
+    assert!(k[3], "rooks carried over");
+    assert!(k[4] && k[10], "queens kept");
+    for fen in [fen_a, fen_b, MID_FENS[0]] {
+        let truth = placement_from_fen(fen);
+        assert_reads(
+            &render(&scene_of(fen, GREEN, true)),
+            &rect_b,
+            &out.templates,
+            Orientation::White,
+            &truth,
+            "merged",
+        );
+    }
+    // A different piece set (other paint colours) is not mixed in.
+    let (frame_c, rect_c, c) = learn_in(fen_b, BLUE);
+    let mut foreign = c.templates.clone();
+    for col in foreign.data["palette"].as_array_mut().unwrap() {
+        for ch in col[0].as_array_mut().unwrap() {
+            *ch = serde_json::json!((ch.as_u64().unwrap() as u8).wrapping_add(90));
+        }
+    }
+    let out = merge_templates(
+        &a.templates,
+        &foreign,
+        &frame_c,
+        &rect_c,
+        &truth_b,
+        Orientation::White,
+    );
+    assert!(!out.merged);
+    assert_eq!(out.templates.data, foreign.data);
+}

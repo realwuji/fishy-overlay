@@ -155,6 +155,25 @@ fn board_fen(p: &Placement) -> String {
     s
 }
 
+/// Could `p` be a chess position: one king per side, at most 8 pawns and 16 pieces per side, no
+/// pawn on the first or last rank, and legal for at least one side to move (the side not to
+/// move is not in check).
+pub fn placement_is_legal(p: &Placement) -> bool {
+    let n = |c: char| p.iter().filter(|&&x| x == c).count();
+    if n('K') != 1 || n('k') != 1 || n('P') > 8 || n('p') > 8 || p.contains(&'?') {
+        return false;
+    }
+    let white = p.iter().filter(|c| c.is_ascii_uppercase()).count();
+    let black = p.iter().filter(|c| c.is_ascii_lowercase()).count();
+    if white > 16 || black > 16 {
+        return false;
+    }
+    if (0..8).any(|f| matches!(p[f], 'P' | 'p') || matches!(p[56 + f], 'P' | 'p')) {
+        return false;
+    }
+    legal_for(p, &['w', 'b'])
+}
+
 /// Is there a side to move for which `p` is a legal position?
 fn legal_for(p: &Placement, allowed: &[char]) -> bool {
     let board = board_fen(p);

@@ -49,11 +49,11 @@ export function chipText(c: ChipInput): ChipText | null {
     if (b && b.calibrated) return { title: 'Fishy is looking at the board', sub: 'Recognising pieces\u2026', tone: 'info', busy: true };
     return {
       title: 'Reading the board\u2026',
-      sub: 'Not picking up the pieces? Show the starting position once, then press Calibrate (Fishy \u203a Overview).',
+      sub: 'Not picking up the pieces? Press Calibrate in Fishy \u203a Overview: from the starting position, or from the FEN of the game you are in.',
       tone: 'info',
     };
   }
-  if (state === 'lost') return { title: 'Lost track of the game', sub: 'Hold still for a moment, or re-calibrate.', tone: 'warn' };
+  if (state === 'lost') return { title: 'Lost track of the game', sub: 'Hold still for a moment, or use Re-detect board.', tone: 'warn' };
   const frac = view.target > 0 ? Math.max(0, Math.min(1, view.depth / view.target)) : undefined;
   if (view.state === 'pending') {
     return {

@@ -306,3 +306,72 @@ fn tracker_joins_the_real_game_in_progress() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// mid-game calibration on private Lichess screenshots (local validation only)
+// ---------------------------------------------------------------------------
+
+const LICHESS_DIR: &str = "/private/tmp/claude-501/-Users-ahmed-fishy-engine/8ec90d43-9535-4602-8da4-c1b3ececeb14/images";
+/// Brown board, black at the bottom, arrows over a few pieces.
+const LICHESS_1: &str = "r1bqkbnr/ppp1pppp/2n5/3p4/3P4/2N2N2/PPP1PPPP/R1BQKB1R";
+/// Same set, clean, an endgame (no rooks, one knight).
+const LICHESS_2: &str = "3N4/5pb1/3Q3p/4pk2/1P6/8/b1P2PPP/2K5";
+
+fn lichess(n: u8) -> Option<(Frame, BoardRect)> {
+    let path = PathBuf::from(LICHESS_DIR).join(format!("{n}.png"));
+    if !path.exists() {
+        eprintln!("SKIP: lichess screenshot {n} is absent (private, not committed)");
+        return None;
+    }
+    let img = image::open(path).ok()?.to_rgba8();
+    let f = frame_of(&img);
+    let rect = detect_board(&f, Site::Lichess)?;
+    Some((f, rect))
+}
+
+fn wrong(t: &Templates, f: &Frame, r: &BoardRect, o: Orientation, want: &Placement) -> usize {
+    let got = read_board(f, r, t, o);
+    (0..64).filter(|&i| got.placement[i] != want[i]).count()
+}
+
+#[test]
+fn midgame_calibration_on_real_lichess_screenshots() {
+    let (Some((f1, r1)), Some((f2, r2))) = (lichess(1), lichess(2)) else { return };
+    let p1 = placement_of_fen(LICHESS_1).unwrap();
+    let p2 = placement_of_fen(LICHESS_2).unwrap();
+    let b = Orientation::Black;
+
+    // 1: arrows over a few pieces, a middlegame with every kind present but one knight pair.
+    let a1 = learn_from_placement_auto(&f1, &r1, &p1, None).expect("learn from 1");
+    assert_eq!(a1.orientation, b);
+    let w11 = wrong(&a1.templates, &f1, &r1, b, &p1);
+    eprintln!("real: 1->1 wrong {w11}, missing {:?}", missing_kind_names(&a1.kinds_seen));
+    assert!(w11 <= 4);
+
+    // 2: an endgame; either learns with the right orientation or refuses, never guesses wrong.
+    match learn_from_placement_auto(&f2, &r2, &p2, None) {
+        Ok(a2) => {
+            assert_eq!(a2.orientation, b);
+            let w22 = wrong(&a2.templates, &f2, &r2, b, &p2);
+            eprintln!("real: 2->2 wrong {w22}, missing {:?}", missing_kind_names(&a2.kinds_seen));
+            let cross = wrong(&a2.templates, &f1, &r1, b, &p1);
+            let cross_back = wrong(&a1.templates, &f2, &r2, b, &p2);
+            eprintln!("real: 2->1 wrong {cross}, 1->2 wrong {cross_back}");
+            let m = merge_templates(&a1.templates, &a2.templates, &f2, &r2, &p2, b);
+            assert!(m.merged, "same set from the same site merges");
+            assert!(wrong(&m.templates, &f2, &r2, b, &p2) <= 4);
+            assert!(wrong(&m.templates, &f1, &r1, b, &p1) <= 4);
+            eprintln!(
+                "real: merged={} reads 1: {}, reads 2: {}",
+                m.merged,
+                wrong(&m.templates, &f1, &r1, b, &p1),
+                wrong(&m.templates, &f2, &r2, b, &p2)
+            );
+        }
+        Err(e) => {
+            let m = e.to_string();
+            eprintln!("real: 2 refused: {m}");
+            assert!(m.contains("which side") || m.contains("not recognised"), "{m}");
+        }
+    }
+}

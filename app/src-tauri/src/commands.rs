@@ -94,6 +94,21 @@ pub async fn set_known_position(
     blocking(move || session.set_known_position(fen)).await?
 }
 
+#[tauri::command]
+pub async fn calibrate_from_position(
+    state: State<'_, AppState>,
+    fen: String,
+) -> Result<BoardState, String> {
+    let session = state.session.clone();
+    blocking(move || session.calibrate_from_position(fen)).await?
+}
+
+#[tauri::command]
+pub async fn reset_pieces(state: State<'_, AppState>) -> Result<BoardState, String> {
+    let session = state.session.clone();
+    blocking(move || session.reset_pieces()).await?
+}
+
 /// Which colour is at the bottom of the screen: `"auto"` (detected, the default), `"white"` or
 /// `"black"` (final). Stored in `capture.orientation`; a running session picks it up at once.
 #[tauri::command]

@@ -24,6 +24,9 @@ pub fn commit_settings(app: &AppHandle, settings: Settings) -> Result<Settings, 
             hotkeys::apply(app, &saved.hotkeys, saved.peek.mode != PeekMode::Off),
         );
     }
+    if saved.screen_share.hide_overlay != old.screen_share.hide_overlay {
+        st.overlay.set_hidden_from_capture(saved.screen_share.hide_overlay);
+    }
     if saved.peek.mode != old.peek.mode {
         // A new mode always starts hidden (or irrelevant when off).
         set_peek(app, false);

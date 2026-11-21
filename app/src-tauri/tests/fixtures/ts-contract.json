@@ -209,6 +209,9 @@
       "fadeMs": 140,
       "autoHideSec": 0,
       "indicator": false
+    },
+    "screenShare": {
+      "hideOverlay": false
     }
   },
   "moveClasses": [

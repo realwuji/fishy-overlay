@@ -196,6 +196,7 @@ export function sanitize(raw: unknown): Settings {
       autoHideSec: num(pk.autoHideSec, 0, 120, D.peek.autoHideSec, true),
       indicator: bool(pk.indicator, D.peek.indicator),
     },
+    screenShare: { hideOverlay: bool(rec(r.screenShare).hideOverlay, D.screenShare.hideOverlay) },
   };
 }
 

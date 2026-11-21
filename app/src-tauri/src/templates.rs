@@ -26,7 +26,8 @@ pub fn load(dir: &Path, site: Site) -> Option<Templates> {
 /// Where the active templates came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
-    /// Learned by the user (`calibrate_start_position`); always takes precedence.
+    /// Learned by the user (`calibrate_start_position` or `calibrate_from_position`); always
+    /// takes precedence.
     User,
     /// Bundled with the app for the site's default look (chess.com first).
     BuiltIn,
@@ -62,6 +63,15 @@ pub fn save(dir: &Path, site: Site, templates: &Templates) -> Result<(), String>
     let bytes = serde_json::to_vec(templates).map_err(|e| e.to_string())?;
     atomic_write(&path_for(dir, site), &bytes)
         .map_err(|e| format!("could not save piece templates: {e}"))
+}
+
+/// Delete the saved calibration for `site` (the built-in set applies again). A missing file is fine.
+pub fn reset(dir: &Path, site: Site) -> Result<(), String> {
+    match std::fs::remove_file(path_for(dir, site)) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("could not remove the saved piece templates: {e}")),
+    }
 }
 
 #[cfg(test)]
@@ -103,6 +113,21 @@ mod tests {
             "built-in chess.com pieces"
         );
         assert_eq!(Source::User.label(Site::ChessCom), "your calibration");
+    }
+
+    #[test]
+    fn reset_is_idempotent_and_restores_builtin() {
+        let dir = TempDir::new("templates-reset");
+        reset(dir.path(), Site::Lichess).unwrap();
+        let t = Templates {
+            data: serde_json::json!({ "k": [1] }),
+        };
+        save(dir.path(), Site::Lichess, &t).unwrap();
+        assert_eq!(resolve(dir.path(), Site::Lichess).unwrap().1, Source::User);
+        reset(dir.path(), Site::Lichess).unwrap();
+        reset(dir.path(), Site::Lichess).unwrap();
+        assert_eq!(resolve(dir.path(), Site::Lichess).unwrap().1, Source::BuiltIn);
+        assert!(resolve(dir.path(), Site::Generic).is_none());
     }
 
     #[test]

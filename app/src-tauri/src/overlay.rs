@@ -184,6 +184,17 @@ impl Overlay {
         });
     }
 
+    /// Keep the overlay out of screen captures (screen shares, recordings) when `hidden`.
+    /// macOS: NSWindow sharing type none; Windows: WDA_EXCLUDEFROMCAPTURE. Fishy's own capture
+    /// then also never sees the drawn lines.
+    pub fn set_hidden_from_capture(&self, hidden: bool) {
+        self.on_main(move |app| {
+            if let Some(w) = app.get_webview_window(OVERLAY_WINDOW) {
+                let _ = w.set_content_protected(hidden);
+            }
+        });
+    }
+
     /// `true` = mouse events pass through to the app below (default).
     pub fn set_click_through(&self, enabled: bool) {
         self.click_through.store(enabled, Ordering::Relaxed);

@@ -13,6 +13,7 @@
 //! frames live only inside one loop iteration and are never persisted or sent
 //! anywhere.
 
+use crate::calibration;
 use crate::engine_path;
 use crate::geometry::{FrameSpace, board_to_overlay, overlay_rect_for};
 use crate::model::{
@@ -29,9 +30,9 @@ use fishy_engine::{
     recommended_config,
 };
 use fishy_vision::{
-    BoardPipeline, BoardRect, CaptureTarget, Frame, Orientation, OrientationSource, Reading,
-    Recognizer, Templates, TrackState, VisionError, detect_board, grab, has_permission,
-    learn_from_start, list_targets, verify_board,
+    BoardPipeline, BoardRect, CaptureTarget, Frame, Orientation, OrientationMode,
+    OrientationSource, Reading, Recognizer, Templates, TrackState, VisionError, detect_board,
+    detect_orientation, grab, has_permission, learn_from_start, list_targets, verify_board,
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -313,6 +314,8 @@ enum Cmd {
     Calibrate(Reply),
     Recalibrate(Reply),
     SetFen(String, Reply),
+    CalibrateFrom(String, Reply),
+    ResetPieces(Reply),
     SettingsChanged,
     Stop,
 }
@@ -452,7 +455,7 @@ impl Worker {
                 self.template_source = None;
                 self.unreadable_frames = 0;
                 self.set_hint(Some(format!(
-                    "No built-in pieces for {} yet. Show the starting position, then press Calibrate in Fishy > Overview.",
+                    "No built-in pieces for {} yet. Show the starting position and press Calibrate, or paste the current FEN and press Calibrate from this position (Fishy > Overview).",
                     templates::site_name(self.cfg.site)
                 )));
             }
@@ -666,6 +669,14 @@ impl Worker {
             }
             Cmd::SetFen(fen, reply) => {
                 let r = guard_result(|| self.set_known_position(&fen));
+                let _ = reply.send(r);
+            }
+            Cmd::CalibrateFrom(fen, reply) => {
+                let r = guard_result(|| self.calibrate_from_position(&fen));
+                let _ = reply.send(r);
+            }
+            Cmd::ResetPieces(reply) => {
+                let r = guard_result(|| self.reset_templates());
                 let _ = reply.send(r);
             }
             Cmd::SettingsChanged => {
@@ -973,7 +984,7 @@ impl Worker {
         self.unreadable_frames = self.unreadable_frames.saturating_add(1);
         if self.unreadable_frames == UNREADABLE_FRAMES {
             self.set_hint(Some(
-                "These pieces do not look like the built-in set. Show the starting position, then press Calibrate in Fishy > Overview."
+                "These pieces do not look like the built-in set. Show the starting position and press Calibrate, or paste the current FEN and press Calibrate from this position (Fishy > Overview)."
                     .to_string(),
             ));
         }
@@ -1153,6 +1164,68 @@ impl Worker {
             return Err(no_board_message());
         }
         Ok(board)
+    }
+
+    /// Learn the piece set from the current screen plus the position the user states, then track
+    /// from that position. Nothing is saved or changed unless every check passed.
+    fn calibrate_from_position(&mut self, fen: &str) -> Result<BoardState, String> {
+        let fen = fen.trim();
+        // Validate before touching the screen so a typo costs nothing.
+        if fishy_vision::placement_of_fen(fen).is_none() {
+            return Err(calibration::MSG_ILLEGAL_FEN.to_string());
+        }
+        let frame = self.capture()?;
+        let site = self.cfg.site;
+        let rect = detect_board(&frame, site).ok_or_else(no_board_message)?;
+        let hint = match self.pipeline.resolver.mode() {
+            OrientationMode::White => Some(Orientation::White),
+            OrientationMode::Black => Some(Orientation::Black),
+            OrientationMode::Auto => detect_orientation(&frame, &rect, site),
+        };
+        let had_templates = self.templates.is_some();
+        let existing = match (&self.templates, &self.recognizer, self.template_source) {
+            (Some(t), Some(r), Some(src)) => Some((t, r, src)),
+            _ => None,
+        };
+        let learned = calibration::learn_from_fen(&frame, &rect, fen, hint, existing)?;
+        // Everything passed: validate the tracker start before saving anything.
+        let full = calibration::full_fen(fen);
+        let mut probe = fishy_vision::PositionTracker::new();
+        probe
+            .reset_to_fen(&full)
+            .map_err(|_| calibration::MSG_ILLEGAL_FEN.to_string())?;
+        templates::save(&self.data_dir, site, &learned.templates)?;
+        let partial = learned.partial_note();
+        let orientation = learned.orientation;
+        self.install_templates(learned.templates, Source::User);
+        self.rect = Some(rect);
+        self.pipeline.resolver.note_structure(orientation);
+        self.pipeline.reset_tracker();
+        self.pipeline
+            .tracker
+            .reset_to_fen(&full)
+            .map_err(|e| format!("That position is not valid: {e}"))?;
+        self.set_orient_status(None);
+        self.last_fen = None;
+        self.force_new_game = true;
+        self.set_note(Some(partial.unwrap_or_else(|| {
+            if had_templates {
+                "Position set. Tracking moves.".to_string()
+            } else {
+                "Pieces learned from this position. Tracking moves.".to_string()
+            }
+        })));
+        Ok(self.publish(&frame, false))
+    }
+
+    /// Forget the user's calibration for this site and fall back to the built-in pieces.
+    fn reset_templates(&mut self) -> Result<BoardState, String> {
+        templates::reset(&self.data_dir, self.cfg.site)?;
+        self.reload_templates();
+        self.pipeline.reset_tracker();
+        self.last_fen = None;
+        let frame = self.capture()?;
+        Ok(self.publish(&frame, false))
     }
 
     fn set_known_position(&mut self, fen: &str) -> Result<BoardState, String> {
@@ -1404,6 +1477,14 @@ impl SessionController {
 
     pub fn set_known_position(&self, fen: String) -> Result<BoardState, String> {
         self.request(|r| Cmd::SetFen(fen, r))
+    }
+
+    pub fn calibrate_from_position(&self, fen: String) -> Result<BoardState, String> {
+        self.request(|r| Cmd::CalibrateFrom(fen, r))
+    }
+
+    pub fn reset_pieces(&self) -> Result<BoardState, String> {
+        self.request(Cmd::ResetPieces)
     }
 }
 

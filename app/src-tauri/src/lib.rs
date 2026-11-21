@@ -12,6 +12,7 @@
 //! overlay is an ordinary, capturable window.
 
 mod actions;
+mod calibration;
 mod commands;
 #[cfg(test)]
 mod contract_tests;
@@ -46,6 +47,7 @@ pub fn run() {
 
             let overlay = Arc::new(overlay::Overlay::new(handle.clone()));
             overlay.setup();
+            overlay.set_hidden_from_capture(store.get().screen_share.hide_overlay);
             let session = Arc::new(session::SessionController::new(
                 handle.clone(),
                 Arc::clone(&store),
@@ -96,6 +98,8 @@ pub fn run() {
             commands::calibrate_start_position,
             commands::recalibrate_board,
             commands::set_known_position,
+            commands::calibrate_from_position,
+            commands::reset_pieces,
             commands::set_board_orientation,
             commands::set_overlay_visible,
             commands::set_peek,

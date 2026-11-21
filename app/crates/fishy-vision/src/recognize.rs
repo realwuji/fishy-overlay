@@ -1145,6 +1145,204 @@ pub fn learn_from_placement(
     learn_core(frame, rect, placement, Some(orientation), 4, "position").map(|(t, _)| t)
 }
 
+/// Message of the error [`learn_from_placement_auto`] returns when the picture fits the position
+/// from both sides and the piece colours cannot settle which side is at the bottom.
+pub const MSG_ORIENTATION_AMBIGUOUS: &str = "Could not tell which side is at the bottom.";
+
+/// Result of [`learn_from_placement_auto`].
+#[derive(Debug, Clone)]
+pub struct AutoLearn {
+    pub templates: Templates,
+    /// Which colour is at the bottom of the screen.
+    pub orientation: Orientation,
+    /// Piece kinds (order `PNBRQK pnbrqk`) that the learned set has a template for.
+    pub kinds_seen: [bool; 12],
+}
+
+/// Mean piece brightness difference (white minus black pieces) when `orientation` is assumed.
+/// Positive means the white pieces on screen really are the lighter ones.
+fn colour_split(
+    frame: &Frame,
+    rect: &BoardRect,
+    truth: &Placement,
+    orientation: Orientation,
+) -> Option<f32> {
+    let mut sides = [Vec::new(), Vec::new()]; // white, black
+    let mut p = Vec::with_capacity(N * N);
+    for r in 0..8 {
+        for c in 0..8 {
+            let ch = truth[board_index(orientation, r, c)];
+            if ch == '.' {
+                continue;
+            }
+            p.clear();
+            extract_square(frame, rect, r, c, &mut p);
+            let bg = background(&p);
+            let mut l: Vec<f32> = Vec::new();
+            for j in W0..W1 {
+                for i in W0..W1 {
+                    let px = p[j * N + i];
+                    if !bg_like(px, bg, 40.0 * 40.0) {
+                        l.push(luma(px));
+                    }
+                }
+            }
+            if !l.is_empty() {
+                sides[ch.is_ascii_lowercase() as usize].push(median(&mut l));
+            }
+        }
+    }
+    if sides[0].is_empty() || sides[1].is_empty() {
+        return None;
+    }
+    Some(median(&mut sides[0]) - median(&mut sides[1]))
+}
+
+/// Learn templates from a frame whose true placement is known but whose orientation may not be.
+///
+/// With a `hint` (manual setting or coordinate labels) only that orientation is tried. Without,
+/// both are tried through [`learn_from_placement`]; when exactly one fits the picture it wins.
+/// When both fit (an occupancy pattern that looks the same upside down) the one under which the
+/// white pieces are the lighter ones wins, and without a clear difference the call fails with
+/// [`MSG_ORIENTATION_AMBIGUOUS`] rather than guessing: a wrong guess would swap piece colours.
+pub fn learn_from_placement_auto(
+    frame: &Frame,
+    rect: &BoardRect,
+    placement: &Placement,
+    hint: Option<Orientation>,
+) -> Result<AutoLearn, VisionError> {
+    let done = |templates: Templates, orientation| AutoLearn {
+        kinds_seen: learned_kinds(&templates),
+        templates,
+        orientation,
+    };
+    if let Some(o) = hint {
+        return learn_from_placement(frame, rect, placement, o).map(|t| done(t, o));
+    }
+    let w = learn_from_placement(frame, rect, placement, Orientation::White);
+    let b = learn_from_placement(frame, rect, placement, Orientation::Black);
+    match (w, b) {
+        (Ok(t), Err(_)) => Ok(done(t, Orientation::White)),
+        (Err(_), Ok(t)) => Ok(done(t, Orientation::Black)),
+        (Ok(tw), Ok(tb)) => {
+            let sw = colour_split(frame, rect, placement, Orientation::White);
+            let sb = colour_split(frame, rect, placement, Orientation::Black);
+            match (sw, sb) {
+                (Some(a), Some(b)) if (a - b).abs() >= 30.0 && a.max(b) > 15.0 => {
+                    Ok(if a > b {
+                        done(tw, Orientation::White)
+                    } else {
+                        done(tb, Orientation::Black)
+                    })
+                }
+                _ => Err(VisionError::Other(MSG_ORIENTATION_AMBIGUOUS.to_string())),
+            }
+        }
+        // Neither fits: report the numbers of the more plausible reading (the White attempt).
+        (Err(e), Err(_)) => Err(e),
+    }
+}
+
+fn stored_of(t: &Templates) -> Option<Stored> {
+    serde_json::from_value(t.data.clone()).ok()
+}
+
+/// Which of the twelve piece kinds (order `PNBRQK pnbrqk`) have a template: any non-zero cell.
+pub fn learned_kinds(t: &Templates) -> [bool; 12] {
+    let mut out = [false; 12];
+    if let Some(st) = stored_of(t) {
+        for (k, h) in st.pieces.iter().enumerate().take(12) {
+            out[k] = hex_decode(h).is_some_and(|b| b.iter().any(|&v| v != 0));
+        }
+    }
+    out
+}
+
+/// Names of the piece kinds (either colour) that `kinds` lacks, in the order pawn, knight,
+/// bishop, rook, queen, king.
+pub fn missing_kind_names(kinds: &[bool; 12]) -> Vec<&'static str> {
+    const NAMES: [&str; 6] = ["pawn", "knight", "bishop", "rook", "queen", "king"];
+    // PIECES order is P N B R Q K, then the same for black.
+    (0..6)
+        .filter(|&i| !kinds[i] || !kinds[i + 6])
+        .map(|i| NAMES[i])
+        .collect()
+}
+
+/// Outcome of [`merge_templates`].
+#[derive(Debug, Clone)]
+pub struct MergeOutcome {
+    pub templates: Templates,
+    /// Kinds from the older set were carried over.
+    pub merged: bool,
+}
+
+/// Fill the kinds that `new` lacks with those of an older set learned for the same piece set.
+///
+/// Only when the palettes agree (same size, same light/dark split, colours within 24 of each
+/// other: the same board and pieces) is anything copied, and the merged set must still read
+/// `frame` (whose true placement is `truth`) with at most 4 wrong squares; otherwise `new` is
+/// returned unchanged. Switching to another piece set therefore never mixes the two.
+pub fn merge_templates(
+    base: &Templates,
+    new: &Templates,
+    frame: &Frame,
+    rect: &BoardRect,
+    truth: &Placement,
+    orientation: Orientation,
+) -> MergeOutcome {
+    let unmerged = || MergeOutcome {
+        templates: new.clone(),
+        merged: false,
+    };
+    let (Some(b), Some(mut n)) = (stored_of(base), stored_of(new)) else {
+        return unmerged();
+    };
+    // The palettes come from different positions, so anti-aliasing shades differ in number and
+    // order; what must agree is the set of paint colours, with the same light/dark class.
+    let near = |c: &([u8; 3], bool), set: &[([u8; 3], bool)]| {
+        let f = |x: [u8; 3]| [x[0] as f32, x[1] as f32, x[2] as f32];
+        set.iter()
+            .any(|o| o.1 == c.1 && d2(f(o.0), f(c.0)) <= 24.0 * 24.0)
+    };
+    let share = |from: &[([u8; 3], bool)], within: &[([u8; 3], bool)]| {
+        from.iter().filter(|c| near(c, within)).count() as f32 / from.len().max(1) as f32
+    };
+    let compatible = b.pieces.len() == n.pieces.len()
+        && share(&n.palette, &b.palette) >= 0.8
+        && share(&b.palette, &n.palette) >= 0.6;
+    if !compatible {
+        return unmerged();
+    }
+    let (kb, kn) = (learned_kinds(base), learned_kinds(new));
+    let mut changed = false;
+    for k in 0..n.pieces.len().min(12) {
+        if kb[k] && !kn[k] {
+            n.pieces[k] = b.pieces[k].clone();
+            changed = true;
+        }
+    }
+    if !changed {
+        return unmerged();
+    }
+    let Ok(data) = serde_json::to_value(&n) else {
+        return unmerged();
+    };
+    let merged = Templates { data };
+    let Some(rec) = Recognizer::new(&merged) else {
+        return unmerged();
+    };
+    let reading = rec.read(frame, rect, orientation);
+    let wrong = (0..64).filter(|&i| reading.placement[i] != truth[i]).count();
+    if wrong > 4 {
+        return unmerged();
+    }
+    MergeOutcome {
+        templates: merged,
+        merged: true,
+    }
+}
+
 /// Read every square. Must ignore move highlights, legal-move dots, arrows
 /// drawn on the board, coordinates labels and drag ghosts as far as possible.
 ///

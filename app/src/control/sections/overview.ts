@@ -1,7 +1,7 @@
 import { inTauri } from '../../shared/ipc';
 import type { CaptureTarget, SessionPhase } from '../../shared/types';
 import {
-  analysisStore, boardStore, calibrate, currentPhase, startingStore, targetsLoadingStore, openPermissionSettings, overlayStore, redetect, refreshTargets, requestPermission,
+  analysisStore, boardStore, calibrate, calibrateFromPosition, resetPieces, currentPhase, startingStore, targetsLoadingStore, openPermissionSettings, overlayStore, redetect, refreshTargets, requestPermission,
   resumeFromFen, setOverlayEditable, setOverlayVisible, startSession, statusStore, stopSession, targetsStore,
   setPeek,
 } from '../backend';
@@ -65,10 +65,10 @@ function trackingInfo(running: boolean): { tone: 'ok' | 'warn' | 'idle'; label: 
   if (!running) return { tone: 'idle', label: 'Not running', guide: 'Press Start session. Fishy then looks for the board on the screen or window you picked.' };
   if (!b.geometry) return { tone: 'idle', label: 'Looking for a board', guide: 'Make sure the whole board is visible on the selected screen or window, with nothing covering it.' };
   if (b.state === 'tracking') return { tone: 'ok', label: `Tracking (${Math.round(b.confidence * 100)}%)`, guide: 'Fishy is following the game. Arrows appear on the board after each move.' };
-  if (b.state === 'lost') return { tone: 'warn', label: 'Lost track of the game', guide: 'Hold still for a moment. If it does not recover, press Re-detect board, or Calibrate with the starting position.' };
+  if (b.state === 'lost') return { tone: 'warn', label: 'Lost track of the game', guide: 'Hold still for a moment. If it does not recover, press Re-detect board.' };
   return b.calibrated
     ? { tone: 'idle', label: 'Board found, reading pieces', guide: 'Fishy is recognising the pieces. This takes a moment.' }
-    : { tone: 'warn', label: 'Board found, pieces not recognised yet', guide: 'On chess.com with the default pieces this should work by itself. For another piece set or site, calibrate with the starting position.' };
+    : { tone: 'warn', label: 'Board found, pieces not recognised yet', guide: 'On chess.com and Lichess with the default pieces this should work by itself. For another piece set, press Calibrate: from the starting position, or from the FEN of the game you are in.' };
 }
 
 const PHASE_ORDER: SessionPhase[] = ['startingEngine', 'findingBoard', 'recognising', 'analysing', 'ready'];
@@ -228,18 +228,27 @@ function statusCard(): HTMLElement {
 
 function calibrateCard(): HTMLElement {
   const input = h('input', {
-    type: 'text', class: 'input mono', 'data-ctl': '', placeholder: START_FEN, spellcheck: false, autocomplete: 'off', 'aria-label': 'FEN position',
+    type: 'text', class: 'input mono', id: 'fen-input', 'data-ctl': '', placeholder: START_FEN, spellcheck: false, autocomplete: 'off', 'aria-label': 'FEN position',
     'aria-describedby': 'fen-msg',
     oninput: () => { msg.textContent = ''; input.removeAttribute('aria-invalid'); },
-    onkeydown: (e: KeyboardEvent) => { if (e.key === 'Enter') go(); },
+    onkeydown: (e: KeyboardEvent) => { if (e.key === 'Enter') learn(); },
   });
   const msg = h('p', { class: 'field-error', id: 'fen-msg', role: 'alert' });
-  const go = () => {
-    const r = checkFen(input.value);
-    if (!r.ok) { msg.textContent = r.error; input.setAttribute('aria-invalid', 'true'); return; }
+  const read = (placementOk: boolean): string | null => {
+    // A bare piece-placement field is accepted when learning; Resume wants the full FEN.
+    let v = input.value.trim();
+    if (placementOk && v.split(/\s+/).length === 1) v = `${v} w - - 0 1`;
+    const r = checkFen(v);
+    if (!r.ok) { msg.textContent = r.error; input.setAttribute('aria-invalid', 'true'); return null; }
     input.value = r.fen;
-    void resumeFromFen(r.fen);
+    return r.fen;
   };
+  const go = () => { const f = read(false); if (f) void resumeFromFen(f); };
+  const learn = () => { const f = read(true); if (f) void calibrateFromPosition(f); };
+  const prefill = h('button', {
+    type: 'button', class: 'btn sm ghost', title: "Fill in what Fishy currently reads. Fix any wrong pieces before pressing Calibrate from this position.",
+    onclick: () => { const fen = boardStore.get().fen; if (fen) { input.value = fen; msg.textContent = ''; input.focus(); } },
+  }, "Use Fishy's reading (fix any wrong pieces)");
   const step = (n: number, title: string, body: string) => h('li', { class: 'step' }, h('span', { class: 'step-n' }, String(n)), h('div', null, h('strong', null, title), h('p', { class: 'help' }, body)));
 
   const boardLine = h('p', { class: 'board-line' });
@@ -248,23 +257,31 @@ function calibrateCard(): HTMLElement {
     boardLine.className = `board-line ${b.state}`;
     boardLine.replaceChildren(h('span', { class: 'dot' }),
       b.state === 'tracking' ? `Tracking. ${b.fen ? 'Position: ' + b.fen.split(' ')[0] : ''}` : b.state === 'lost' ? 'Board lost. Try Re-detect board.' : b.geometry ? 'Board found. Pieces not recognised yet.' : 'No board found yet.');
+    prefill.hidden = !b.fen;
   };
   boardStore.subscribe(render); render();
 
-  return card({ title: 'Board and pieces', desc: 'On chess.com, Fishy already knows the default pieces and can join a game mid-way. Calibration is for anything else.' },
+  return card({ title: 'Board and pieces', desc: 'Fishy already knows the default chess.com and Lichess pieces. Any other piece set needs one calibration: from the starting position, or from any position you can type in.' },
     h('ol', { class: 'steps' },
-      step(1, 'Show the whole board', 'Open a chess.com game, analysis board or puzzle, then press Start session. Keep the board fully visible and unobstructed.'),
-      step(2, 'chess.com default pieces: nothing else to do', 'Fishy recognises them built in, so it works from any position, even a game already in progress.'),
-      step(3, 'Other piece set or site: calibrate', 'Put the starting position on screen (all 32 pieces home, no arrows over them) and press Calibrate. Fishy learns your piece set from it.')),
+      step(1, 'Show the whole board', 'Open a game, analysis board or puzzle, then press Start session. Keep the board fully visible and unobstructed.'),
+      step(2, 'Default pieces: nothing to do', 'Fishy recognises the default chess.com and Lichess pieces built in, so it works from any position, even a game already in progress.'),
+      step(3, 'Other set, game not started: press Calibrate', 'Put the starting position on screen (all 32 pieces home, no arrows over them) and press Calibrate. Fishy learns your piece set from it.'),
+      step(4, 'Other set, game in progress: calibrate from the position', 'Paste the current FEN below and press Calibrate from this position. Keep arrows and highlights off the pieces.')),
     h('div', { class: 'btn-row' },
       button('Calibrate (starting position on screen)', () => { void calibrate(); }, { cls: 'primary lg', icon: 'target' }),
       button('Re-detect board', () => { void redetect(); }, { cls: 'lg', icon: 'refresh', title: 'Find the board again, for example after moving or resizing the window' })),
     boardLine,
     h('div', { class: 'divider' }),
-    field('Resume from FEN', 'Joining a game already in progress? Paste its FEN to start tracking from that exact position.',
-      h('div', { class: 'fen-row' }, input, button('Resume', go, { cls: 'sm' }), button('Use start', () => { input.value = START_FEN; msg.textContent = ''; }, { cls: 'sm ghost', title: 'Fill in the standard starting position' })),
+    field('Current position (FEN)', 'Joining a game in progress? Paste its FEN. Calibrate from this position learns your piece set from the screen and starts tracking from it; Resume only starts tracking and needs pieces Fishy already knows.',
+      h('div', { class: 'fen-row' }, input,
+        button('Calibrate from this position', learn, { cls: 'sm primary', title: 'Learn the pieces from the board on screen, using this FEN as the answer' }),
+        button('Resume', go, { cls: 'sm', title: 'Start tracking from this FEN with the pieces Fishy already knows' }),
+        button('Use start', () => { input.value = START_FEN; msg.textContent = ''; }, { cls: 'sm ghost', title: 'Fill in the standard starting position' })),
       { stack: true }),
-    msg);
+    prefill,
+    msg,
+    h('div', { class: 'btn-row' },
+      button('Reset to built-in pieces', () => { void resetPieces(); }, { cls: 'sm ghost', title: 'Forget your saved calibration for this site, for example after a mistyped FEN' })));
 }
 
 function permissionCard(): HTMLElement {
@@ -290,7 +307,8 @@ function overlayCard(): HTMLElement {
   overlayStore.subscribe(() => { t1.setAttribute('aria-checked', String(vis.get())); t1.classList.toggle('on', vis.get()); t2.setAttribute('aria-checked', String(ed.get())); t2.classList.toggle('on', ed.get()); });
   return card({ title: 'Overlay' },
     field('Show overlay', 'Hide or show everything Fishy draws without stopping analysis.', t1),
-    field('Move the HUD', 'Unlock the overlay so you can drag the HUD. Click-through is restored when you turn this off.', t2));
+    field('Move the HUD', 'Unlock the overlay so you can drag the HUD. Click-through is restored when you turn this off.', t2),
+    field('Hide from screen sharing', 'The overlay stays on your screen but is left out of screen shares and recordings, so students see only the board. Works on macOS and Windows.', toggle(at<boolean>('screenShare.hideOverlay'), { label: 'Hide from screen sharing' })));
 }
 
 function peekCard(): HTMLElement {
@@ -326,7 +344,7 @@ function hotkeyCard(): HTMLElement {
 export function overviewSection(): HTMLElement {
   const site: Bind<string> = at('site');
   return sectionShell(
-    { id: 'overview', title: 'Overview', desc: 'Start a session and point Fishy at your board. Calibrate only for other piece sets or sites.', icon: 'overview' },
+    { id: 'overview', title: 'Overview', desc: 'Start a session and point Fishy at your board. Calibrate only for other piece sets.', icon: 'overview' },
     statusCard(),
     card({ title: 'What to watch' },
       field('Capture target', inTauri() ? 'Choose the screen or the browser window that shows your board.' : 'Choose the screen or browser window that shows your board. (Preview mode lists sample targets.)', targetSelect(), { stack: true }),

@@ -125,6 +125,14 @@ pub enum PeekMode {
     Toggle,
 }
 
+/// Screen-share privacy: keep the overlay out of screen captures (shares, recordings).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenShareSettings {
+    /// Excluded from screen capture by the OS, so students see only the board.
+    pub hide_overlay: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PeekSettings {
@@ -148,6 +156,7 @@ pub struct Settings {
     pub capture: CaptureSettings,
     pub hotkeys: HotkeySettings,
     pub peek: PeekSettings,
+    pub screen_share: ScreenShareSettings,
     /// Every other field of the TS `Settings` (version, arrows, labels, ...).
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -217,7 +226,8 @@ pub fn default_json() -> Value {
             "toggleOverlay": "Alt+Space", "toggleHud": "Alt+H",
             "cycleArrows": "Alt+A", "recalibrate": "Alt+R", "peek": "Alt+X"
         },
-        "peek": { "mode": "off", "fadeMs": 140, "autoHideSec": 0, "indicator": false }
+        "peek": { "mode": "off", "fadeMs": 140, "autoHideSec": 0, "indicator": false },
+        "screenShare": { "hideOverlay": false }
     })
 }
 

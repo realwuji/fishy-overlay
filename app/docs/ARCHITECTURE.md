@@ -46,6 +46,7 @@ analysis as a transparent overlay over any chess board on screen. It is a study 
 Commands (`invoke`, declared in `Commands` in `types.ts`): `get_settings`, `set_settings({settings})`,
 `reset_settings`, `list_capture_targets`, `start_session`, `stop_session`, `get_status`,
 `calibrate_start_position`, `recalibrate_board`, `set_known_position({fen})`,
+`calibrate_from_position({fen})`, `reset_pieces`,
 `set_board_orientation({orientation})` (`auto` | `white` | `black`, stored as `capture.orientation`),
 `set_overlay_visible({visible})`, `set_click_through({enabled})`, `request_screen_permission`,
 `open_screen_permission_settings`.
@@ -73,10 +74,36 @@ Piece artwork differs by site and theme, so Fishy learns it from the user's own 
 position visible, `calibrate_start_position` runs `detect_board`, then `learn_from_start`: it finds the two
 square colours, derives orientation from piece brightness, learns 12 piece templates (all kinds occur in the
 start position) and verifies it can read the start position back. Templates are serialised into
-`Templates.data` (kept in memory by the session). Calibrate without arrows over the pieces. Mid-game, use
-`set_known_position(fen)` after one calibration. The tracker needs two identical frames, treats unknown
+`Templates.data` (kept in memory by the session). Calibrate without arrows over the pieces. Built-in
+templates exist for the default chess.com and Lichess pieces. The tracker needs two identical frames, treats unknown
 squares as wildcards, matches readings against legal moves, tolerates a dragged piece, and reports `lost`
 after 3 unexplained stable frames before trying to resync.
+
+### Calibrating mid-game
+
+The start position is not required. `calibrate_from_position(fen)` (`session.rs`, logic in
+`src-tauri/src/calibration.rs`) learns the piece set from the current screen plus a position the user
+types in, so the ground truth comes from the user, never from the recognizer's own reading:
+
+1. The FEN must parse and pass `placement_is_legal` (one king per side, at most 8 pawns, no pawns on the
+   first or last rank, legal for some side to move).
+2. Orientation: the manual setting, else coordinate labels, else both views are tried through
+   `learn_from_placement_auto`. When only one fits the picture it wins; when both fit (an occupancy
+   pattern that is symmetric) the view in which the white pieces are the lighter ones wins, and without a
+   clear difference the call fails ("Could not tell which side is at the bottom") instead of guessing.
+3. `learn_core` rejects a picture that does not match the position (pieces seen / empty squares clear) and
+   a template set that cannot read the same frame back (more than 4 wrong squares).
+4. Kinds missing from the position (for example no queens) get no template and are named in a note ("Not
+   seen yet: queen, rook"); pressing Calibrate from this position again later adds them. If the saved
+   calibration has the same paint colours (`merge_templates`), its kinds are carried over and the merged
+   set must still read the frame; a different piece set is never mixed in.
+5. The new set is installed only if it reads the frame at least as well as the set already active, then
+   saved, the resolver is told the orientation (`note_structure`) and the tracker starts from the FEN.
+   Any failure changes nothing. `reset_pieces` deletes the saved file so the built-in set applies again.
+
+Limit: the self check reads the same frame the templates were learned from, so a FEN that swaps two kinds
+consistently (every bishop typed as a knight) is not detected. Recovery is Reset to built-in pieces and
+calibrating again. `set_known_position` (the Resume button) never learns and needs existing templates.
 
 Orientation (which colour is at the bottom) is never defaulted: manual `capture.orientation` > chess.com
 coordinate labels (`detect_orientation`) > legal-and-natural structure > calibration, re-checked every

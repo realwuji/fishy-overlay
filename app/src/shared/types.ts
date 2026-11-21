@@ -146,6 +146,8 @@ export interface Settings {
   capture: { fps: number; targetId: string | null; orientation?: 'auto' | 'white' | 'black' };
   theme: { mode: 'dark' | 'light' | 'system'; accent: string; uiScale: number; reduceMotion: boolean };
   hotkeys: { toggleOverlay: string; toggleHud: string; cycleArrows: string; recalibrate: string; peek: string };
+  /** Screen-share privacy. */
+  screenShare: { hideOverlay: boolean };
   /** Peek mode: analysis keeps running but the overlay only draws while the peek key says so. */
   peek: {
     mode: PeekMode;
@@ -178,6 +180,8 @@ export interface Commands {
   calibrate_start_position(): BoardState;   // user has the starting position on screen
   recalibrate_board(): BoardState;          // re-run board detection
   set_known_position(args: { fen: string }): BoardState; // resume mid-game from FEN
+  calibrate_from_position(args: { fen: string }): BoardState; // learn the piece set from the screen + this FEN
+  reset_pieces(): BoardState;               // drop the saved calibration, back to built-in pieces
   /** 'auto' detects it (default); 'white'/'black' is final. Stored as capture.orientation. */
   set_board_orientation(args: { orientation: 'auto' | 'white' | 'black' }): Settings;
   set_peek(args: { revealed: boolean }): void;

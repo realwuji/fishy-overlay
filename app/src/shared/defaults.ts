@@ -60,4 +60,5 @@ export const DEFAULT_SETTINGS: Settings = {
     toggleOverlay: 'Alt+Space', toggleHud: 'Alt+H', cycleArrows: 'Alt+A', recalibrate: 'Alt+R', peek: 'Alt+X',
   },
   peek: { mode: 'off', fadeMs: 140, autoHideSec: 0, indicator: false },
+  screenShare: { hideOverlay: false },
 };
