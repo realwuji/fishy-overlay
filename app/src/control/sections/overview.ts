@@ -308,7 +308,7 @@ function overlayCard(): HTMLElement {
   return card({ title: 'Overlay' },
     field('Show overlay', 'Hide or show everything Fishy draws without stopping analysis.', t1),
     field('Move the HUD', 'Unlock the overlay so you can drag the HUD. Click-through is restored when you turn this off.', t2),
-    field('Hide from screen sharing', 'The overlay stays on your screen but is left out of screen shares and recordings, so students see only the board. Works on macOS and Windows.', toggle(at<boolean>('screenShare.hideOverlay'), { label: 'Hide from screen sharing' })));
+    field('Hide from screen sharing', 'For coaching only. The overlay stays on your screen but is left out of screen shares and recordings, so students see only the board. Never use this to hide engine help from an opponent, arbiter or tournament: that is cheating.', toggle(at<boolean>('screenShare.hideOverlay'), { label: 'Hide from screen sharing' })));
 }
 
 function peekCard(): HTMLElement {
