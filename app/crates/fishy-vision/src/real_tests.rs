@@ -233,12 +233,14 @@ fn learning_rejects_a_wrong_placement() {
 }
 
 #[test]
-fn builtin_templates_are_small_and_only_for_chesscom() {
+fn builtin_templates_are_small_and_only_for_chesscom_and_lichess() {
     let t = Templates::builtin(Site::ChessCom).expect("chess.com builtin");
     let len = serde_json::to_string(&t.data).unwrap().len();
     assert!(len < 100_000, "{len} bytes");
     assert!(Recognizer::new(&t).is_some());
-    assert!(Templates::builtin(Site::Lichess).is_none());
+    let li = Templates::builtin(Site::Lichess).expect("lichess builtin");
+    assert!(serde_json::to_string(&li.data).unwrap().len() < 100_000);
+    assert!(Recognizer::new(&li).is_some());
     assert!(Templates::builtin(Site::Generic).is_none());
 }
 

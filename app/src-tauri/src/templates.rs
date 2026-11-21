@@ -89,7 +89,8 @@ mod tests {
         let dir = TempDir::new("templates-resolve");
         let (_, src) = resolve(dir.path(), Site::ChessCom).expect("builtin chess.com");
         assert_eq!(src, Source::BuiltIn);
-        assert!(resolve(dir.path(), Site::Lichess).is_none());
+        assert_eq!(resolve(dir.path(), Site::Lichess).map(|(_, s)| s), Some(Source::BuiltIn));
+        assert!(resolve(dir.path(), Site::Generic).is_none());
         let t = Templates {
             data: serde_json::json!({ "k": [1] }),
         };

@@ -80,8 +80,7 @@ fn main() {
     });
     // Coordinate-label glyph masks (alpha maps of `8 1 h a`, a few hundred bytes each).
     if let Err(e) = learn_labels(&frame, &rect, orientation, &mut t) {
-        eprintln!("{e}");
-        std::process::exit(1);
+        eprintln!("warning: {e} (continuing without label glyphs)");
     }
     let json = serde_json::to_string(&t.data).expect("serialise");
     std::fs::write(out, &json).expect("write output");

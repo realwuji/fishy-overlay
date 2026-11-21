@@ -77,12 +77,13 @@ impl Templates {
     ///
     /// Only `ChessCom` (default green board, default "Neo" pieces) has any. They are 32x32
     /// colour-class masks derived from a screenshot (a few KB), not the screenshot itself, and
-    /// are matched scale- and theme-independently like learned templates. Other sites and piece
-    /// sets still need calibration.
+    /// are matched scale- and theme-independently like learned templates. The Lichess set is the
+    /// default (cburnett) pieces; other sites and piece sets still need calibration.
     pub fn builtin(site: Site) -> Option<Templates> {
         let json = match site {
             Site::ChessCom => include_str!("builtin/chesscom.json"),
-            Site::Lichess | Site::Generic => return None,
+            Site::Lichess => include_str!("builtin/lichess.json"),
+            Site::Generic => return None,
         };
         let data = serde_json::from_str(json).ok()?;
         let t = Templates { data };
