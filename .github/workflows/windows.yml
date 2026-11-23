@@ -1,0 +1,65 @@
+name: Windows installer
+
+# Builds the Windows NSIS installer (Fishy + Stockfish sidecar).
+# Run it from the Actions tab (Run workflow), or with: gh workflow run windows.yml
+# The installer is unsigned, so Windows SmartScreen will warn until it is code-signed.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true   # engine/stockfish (official Stockfish, pinned commit)
+
+      - name: Toolchains (MSYS2 MinGW for Stockfish, Rust for Fishy)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          path-type: inherit
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            make
+            curl
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Build Stockfish sidecar
+        # The script names the binary stockfish-<rust host triple>.exe and smoke-tests it.
+        # x86-64-avx2 runs on any PC from roughly 2013 on; use x86-64-modern/avx512 only if you know the target CPUs.
+        run: bash app/scripts/build-stockfish.sh --no-pgo --arch x86-64-avx2 --force
+
+      - name: Install JS dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build installer
+        working-directory: app
+        run: npx tauri build --bundles nsis
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fishy-windows-x64
+          path: app/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
